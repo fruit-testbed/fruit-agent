@@ -1,0 +1,31 @@
+# Contributor: "Herry <herry.herry@glasgow.ac.uk>"
+# Maintainer: "Herry <herry.herry@glasgow.ac.uk>"
+pkgname=fruit-agent
+pkgver=0.0.3
+pkgrel=0
+pkgdesc="FRuIT management system"
+url="https://github.com/fruit-testbed"
+arch="all"
+license="MIT"
+depends=""
+depends_dev=""
+makedepends="$depends_dev"
+install=""
+subpackages=""
+source="${pkgname}-${pkgver}.zip::https://github.com/fruit-testbed/fruit-agent/archive/master.zip"
+builddir="$srcdir/${pkgname}-master"
+
+prepare() {
+	default_prepare
+}
+
+build() {
+	cd "$builddir"
+	make
+}
+
+package() {
+	cd "$builddir"
+	make DESTDIR="$pkgdir" install
+}
+sha512sums="9f7a50d983f2cd109ca0c3dce7e1bb216eea1bd5e02622f369f2a733e12d182b8a4631eb0d0196f10e08f12b7b53bd2da7bb01be040706b147aa0a7b0436ef0d  fruit-agent-0.0.3.zip"

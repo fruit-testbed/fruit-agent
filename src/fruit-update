@@ -1,0 +1,129 @@
+#!/bin/sh
+
+address=mgmt.fruit-testbed.org
+port=443
+user="fruit-$(uname -n)"
+passwd=$(sha256sum /etc/ssh/ssh_host_rsa_key | cut -d' ' -f1)
+baseurl=https://${user}:${passwd}@${address}:${port}/api
+
+# helper
+eend() {
+  if [ $1 -ne 0 ]; then
+    logger -t 'fruit-update' -s "FAILED: $2"
+  else
+    logger -t 'fruit-update' -s "$2"
+  fi
+  return $1
+}
+
+check_connection() {
+  curl -sfL --location-trusted --header "Range: bytes=0-1" ${baseurl}/os/$(uname -n) >/dev/null
+  eend $? "Tested connection to update server"
+  [ $? -ne 0 ] && exit 1
+  return 0
+}
+
+pre() {
+  ret=0
+
+  cp -f /media/mmcblk0p1/fruit.json /run/fruit.json
+  eend $? "Backed up fruit.json"
+  ret=$((ret + $?))
+
+  if [ $ret -eq 0 ] && [ $(mount | grep ' on /.modloop ' | wc -l) -ne 0 ]; then
+    rc-service modloop stop 1>/dev/null 2>/dev/null
+    eend $? "Unmounted /.modloop"
+    ret=$((ret + $?))
+  fi
+
+  if [ $ret -eq 0 ] && [ $(mount | grep ' on /media/mmcblk0p1 ' | wc -l) -ne 0 ]; then
+    umount -f /media/mmcblk0p1
+    eend $? "Unmounted /media/mmcblk0p1"
+    ret=$((ret + $?))
+  fi
+
+  if [ $ret -eq 0 ] && [ -f /run/docker.pid ]; then
+    rc-service docker stop
+    ret=$((ret + $?))
+  fi
+
+  if [ $ret -eq 0 ] && [ $(mount | grep ' on /data ' | wc -l) -ne 0 ]; then
+    umount -f /var/lib/docker 1>/dev/null 2>/dev/null \
+      && umount -f /data
+    eend $? "Unmounted /var/lib/docker and /data"
+    ret=$((ret + $?))
+  fi
+
+  return $ret
+}
+
+update() {
+  timeout -t 3600 curl -sfL --location-trusted ${baseurl}/os/$(uname -n) | gunzip -c > /dev/mmcblk0
+  eend $? "Downloaded and wrote new image"
+  return $?
+}
+
+post() {
+  if [ $(mount | grep ' on /media/mmcblk0p1 ' | wc -l) -eq 0 ]; then
+    mount /dev/mmcblk0p1 /media/mmcblk0p1
+    eend $? "Mounted /media/mmcblk0p1"
+
+    [ -f /run/fruit.json ] \
+      && cp -f /run/fruit.json /media/mmcblk0p1/fruit.json \
+      && eend $? "Restored fruit.json"
+
+    mount -o remount,ro /media/mmcblk0p1
+    eend $? "Set /media/mmcblk0p1 read-only"
+  fi
+
+  if [ $(mount | grep ' on /.modloop ' | wc -l) -eq 0 ]; then
+    [ $(rc-service modloop status | grep 'status: started' | wc -l) -ne 0 ] \
+      && rc-service modloop stop 1>/dev/null
+    rc-service modloop start 1>/dev/null
+    eend $? "Mounted /.modloop"
+  fi
+
+  umount -f /.modloop/modules
+  umount -f /.modunisonfs
+
+  return 0
+}
+
+verify() {
+  ret=0
+  sum1=$(curl -sL ${baseurl}/os/$(uname -n)?checksum=.img-files | sha256sum | cut -d' ' -f1)
+  if [ -f /media/mmcblk0p1/.fruit-files.sha256 ]; then
+    sum2=$(sha256sum /media/mmcblk0p1/.fruit-files.sha256 | cut -d' ' -f1)
+    if [ "$sum1" != "$sum2" ]; then
+      ret=1
+      logger -t 'fruit-update' -s 'ERROR: Files verification failed.'
+    else
+      logger -t 'fruit-update' -s 'Files verified.'
+    fi
+  fi
+  return $ret
+}
+
+main() {
+  if [ $(id -u) -ne 0 ]; then
+    echo "Only root can invoke this application."
+    exit 1
+  fi
+
+  logger -t 'fruit-update' -s "Updating OS"
+  check_connection
+  pre && update
+  ret1=$?
+  post && verify
+  ret2=$?
+
+  if [ $ret1 -eq 0 ] && [ $ret2 -eq 0 ]; then
+    logger -t 'fruit-update' -s "OS Updated - rebooting in 5 seconds"
+    sleep 5
+    reboot
+  fi
+
+  exit $ret
+}
+
+main

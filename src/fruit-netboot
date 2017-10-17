@@ -1,0 +1,148 @@
+#!/sbin/openrc-run
+
+description="Set up netboot on a master node."
+
+home=/media/mmcblk0p1/netboot
+target=/var/netboot
+config=/media/mmcblk0p1/fruit.json
+num_clients=64
+share=/data/netboot/share
+
+depend()
+{
+  need net fruit netboot-files nat
+  provide netboot
+}
+
+get() {
+  value=$(JSON.sh < ${config} | grep $1 | cut -f2)
+  if [ ${value} = "" ] || [ ${value} = '""' ]
+  then
+    echo
+  else
+    echo ${value} | xargs printf
+  fi
+}
+
+get_master_addr() {
+  local iface=$(cat /etc/network/interfaces | grep 'iface eth.* static' | awk '{print $2}')
+  if [ "$iface" != "" ]; then
+    echo $(ip -4 addr show dev ${iface} | grep 'inet ' | head -1 | awk '{print $2}')
+    return 0
+  fi
+  return 1
+}
+
+setup_dnsmasq()
+{
+  local lan=$(cat /etc/network/interfaces | grep 'iface eth.* static' | awk '{print $2}')
+  local addr=$(get_master_addr)
+
+  ebegin "Installing dnsmasq"
+  apk add dnsmasq 1>/dev/null 2>/dev/null
+  eend $?
+  ret=$((ret + $?))
+
+  addrs=$(ipcalc.sh ${addr})
+  local_ip=$(echo ${addrs} | cut -d' ' -f1)
+  b1=$(echo ${local_ip} | cut -d'.' -f1)
+  b2=$(echo ${local_ip} | cut -d'.' -f2)
+  b3=$(echo ${local_ip} | cut -d'.' -f3)
+  b4=$(echo ${local_ip} | cut -d'.' -f4)
+  b4min=$(( b4 + 10 ))
+  b4max=$(( b4min + $num_clients ))
+  if [ ${b4max} -gt 254 ]; then
+    b4max=254
+  fi
+  ipmin=${b1}.${b2}.${b3}.${b4min}
+  ipmax=${b1}.${b2}.${b3}.${b4max}
+
+  for i in `seq $b4min $b4max`; do
+    clientIPs="$clientIPs ${b1}.${b2}.${b3}.${i}"
+  done
+
+  ebegin "Configuring dnsmasq: master=$local_ip min-client-ip=$ipmin max-client-ip=$ipmax"
+  cat > /etc/dnsmasq.d/fruit.conf <<EOL
+interface=${lan}
+
+domain=fruit-testbed.org
+dhcp-range=${ipmin},${ipmax},24h
+dhcp-option=option:ntp-server,${local_ip}
+log-dhcp
+
+enable-tftp
+tftp-root=${target}/tftp
+pxe-service=0,"Raspberry Pi Boot "
+EOL
+  eend $?
+  ret=$((ret + $?))
+
+  rc-service dnsmasq start
+  ret=$((ret + $?))
+}
+
+setup_nfs()
+{
+  local addr=$(get_master_addr)
+  local netaddress=$(ipcalc.sh "$addr" | cut -d' ' -f3)/$(echo ${addr} | cut -d'/' -f2)
+
+  ebegin "Installing NFS"
+  apk add nfs-utils 1>/dev/null
+  eend $?
+  ret=$((ret + $?))
+
+  ebegin "Exporting netboot root filesystem"
+  cat > /etc/exports <<EOL
+${target}/rootfs ${netaddress}(fsid=0,ro,async,no_subtree_check,no_root_squash)
+EOL
+  eend $?
+  ret=$((ret + $?))
+
+  # Creating a share volume for each client (using its IP)
+  for ip in $clientIPs; do
+    mkdir -p ${share}/${ip} && \
+      chmod 1777 ${share}/${ip} && \
+      echo "${share}/${ip} ${ip}(rw,sync,no_subtree_check,no_root_squash) " >> /etc/exports
+  done
+
+  ebegin "Starting nfs services"
+  timeout -t 60 rc-service rpcbind start && \
+  sleep 5 && \
+  timeout -t 60 rc-service rpc.statd start && \
+  sleep 5 && \
+  timeout -t 120 rc-service nfs start
+  eend $?
+  ret=$((ret + $?))
+}
+
+setup_ntpd() {
+  if [ $(ps axf | grep ntpd | grep -v grep | grep '\-l' | wc -l) -eq 0 ]; then
+    echo 'NTPD_OPTS="-N -l"' > /etc/conf.d/ntpd
+    rc-service ntpd restart 1>/dev/null 2>/dev/null
+    return $?
+  fi
+  return 0
+}
+
+start()
+{
+  local ret=0
+  local clientIPs=""
+
+  apk update 1>/dev/null 2>/dev/null
+  ret=$?
+  if [ $ret -eq 0 ]; then
+    setup_dnsmasq
+    setup_nfs
+    setup_ntpd
+  fi
+  return ${ret}
+}
+
+stop()
+{
+  rc-service -i dnsmasq stop && \
+  rc-service -i nfs stop && \
+  rc-service -i rpcbind stop
+  return $?
+}

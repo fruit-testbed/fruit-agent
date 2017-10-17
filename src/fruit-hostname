@@ -1,0 +1,6 @@
+#!/bin/sh
+
+serial=$(cat /proc/cpuinfo | grep Serial | awk '{print $3}' | sed -e "s/^0*//g")
+hostname="pi$serial"
+echo ${hostname} > /etc/hostname
+hostname ${hostname}
