@@ -17,7 +17,7 @@ valueof() {
 	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
 		echo
 	else
-		echo ${VALUE} | xargs printf
+		echo ${value} | xargs printf
 	fi
 }
 
