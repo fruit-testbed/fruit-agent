@@ -1,12 +1,15 @@
 #!/bin/sh
 
+src_config=/boot/fruit.json
 config=/run/fruit.json
 
 copy_config_to_run() {
-	[ -e /boot/fruit.json ] \
-		&& cp -f /boot/fruit.json /run/ \
-		|| echo '{}' > /run/fruit.json
-	return $?
+	[ -e ${src_config} ] \
+		&& cp -f ${src_config} ${config} \
+		|| echo '{}' > ${config}
+	ret=$?
+	[ $ret -ne 0 ] && logger -t fruit "ERROR: cannot copy /boot/fruit.json to /run/fruit.json"
+	return $ret
 }
 
 valueof() {
@@ -92,6 +95,45 @@ setup_wpa_supplicant() {
 		logger -s -t fruit "Started wpa_supplicant SSID=$ssid"
 }
 
+# $0: interface to be set up
+setup_network_interface() {
+	iface=$1
+	addr=$(valueof "\[\"network\",\"$iface\"\]")
+	if [ "$addr" = "" ]; then
+		addr="dhcp"
+	fi
+
+	ebegin "Setting $iface to $addr"
+	if [ "$addr" = "dhcp" ]; then
+		cat >> /etc/network/interfaces <<-EOL
+			auto $iface
+			iface $iface inet dhcp
+
+		EOL
+		logger -t fruit "Set $iface to $addr"
+	else
+		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
+		if [ "$ipaddr" = "" ]; then
+			logger -t fruit "ERROR: invalid address of $iface: $ipaddr"
+			false
+		else
+			netmask=$(sipcalc "$addr" | grep 'Network mask\t' | awk '{print $4}')
+			network=$(sipcalc "$addr" | grep 'Network address\t' | awk '{print $4}')
+			broadcast=$(sipcalc "$addr" | grep 'Broadcast address\t' | awk '{print $4}')
+			cat >> /etc/network/interfaces <<EOL
+auto $iface
+iface $iface inet static
+	address $ipaddr
+	netmask $netmask
+	network $network
+	broadcast $broadcast
+EOL
+			logger -t fruit "Set $iface to $addr"
+		fi
+	fi
+	eend $?
+}
+
 setup_network() {
 	local ifaces=$(ip -o link show | cut -d' ' -f2 | sed 's/:$//')
 	local wpa=no
@@ -116,11 +158,16 @@ setup_network() {
 	done
 }
 
-start() {
-	copy_config_to_run
-	setup_user_root
-	setup_hostname
-	setup_timezone
-	setup_keyboard
-	setup_network
-}
+
+##### main #####
+
+copy_config_to_run
+[ $? -ne 0 ] && exit 1
+
+setup_user_root
+setup_hostname
+setup_timezone
+setup_keyboard
+setup_network
+
+exit 0
