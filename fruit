@@ -1,0 +1,126 @@
+#!/bin/sh
+
+config=/run/fruit.json
+
+copy_config_to_run() {
+	[ -e /boot/fruit.json ] \
+		&& cp -f /boot/fruit.json /run/ \
+		|| echo '{}' > /run/fruit.json
+	return $?
+}
+
+valueof() {
+	value=$(JSON.sh < ${config} | grep $1 | cut -f2)
+	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
+		echo
+	else
+		echo ${VALUE} | xargs printf
+	fi
+}
+
+setup_user_root() {
+	hash=$(valueof '\["root-password"\]')
+	if [ "$hash" != "" ]; then
+		sed -i '/^root/ d' /etc/shadow && \
+			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
+			logger -s -t fruit "Updated root's password"
+	fi
+}
+
+serial() {
+	cat /proc/cpuinfo | grep Serial | awk '{print $3}' | sed 's/^0*//'
+}
+
+setup_hostname() {
+	hostname=$(valueof '\["name"\]')
+	if [ "$hostname" = "" ]; then
+		hostname="pi$(serial)"
+	fi
+	echo "$hostname" > /etc/hostname
+	echo "127.0.1.1   $hostname" >> /etc/hosts
+	hostname $hostname
+	logger -s -t fruit "Set hostname to $hostname"
+}
+
+setup_timezone() {
+	zone=$(valueof '\["timezone"\]')
+	if [ "$zone" = "" ]; then
+		zone="GB"
+	fi
+	zone=$(echo "$zone" | awk '{print toupper($0)}')
+	setup-timezone -z $zone && \
+		logger -s -t fruit "Set timezone to $zone"
+}
+
+setup_keyboard() {
+	keyboard=$(valueof '\["keyboard"\]')
+	if [ "$keyboard" = "" ]; then
+		keyboard="gb"
+	fi
+	keymap=$(echo "$keyboard" | cut -d' ' -f1)
+	variant=$(echo "$keyboard" | cut -d' ' -f2)
+	setup-keymap $keymap $variant && \
+		logger -s -t fruit "Set keyboard to keymap=$keymap variant=$variant"
+}
+
+setup_wpa_supplicant() {
+	[ "$wpa" = yes ] && return 0
+	wpa=yes
+
+	ssid=$(valueof '\["wpa","ssid"\]')
+	[ "$ssid" = "" ] && return 0
+
+	username=$(valueof '\["wpa","username"\]')
+	password=$(valueof '\["wpa","password"\]')
+
+	if [ "$username" != "" ]; then
+		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<-EOL
+			network={
+				ssid="$ssid"
+				scan_ssid=1
+				key_mgmt=WPA-EAP
+				eap=PEAP
+				phase1="peaplabel=0"
+				phase2="auth=MSCHAPV2"
+				identity="$username"
+				password="$password"
+		EOL
+	else
+		wpa_passphrase $ssid $password > /etc/wpa_supplicant/wpa_supplicant.conf
+	fi
+	rc-service wpa_supplicant start && \
+		logger -s -t fruit "Started wpa_supplicant SSID=$ssid"
+}
+
+setup_network() {
+	local ifaces=$(ip -o link show | cut -d' ' -f2 | sed 's/:$//')
+	local wpa=no
+
+	# loopback
+	cat > /etc/network/interfaces <<-EOL
+		auto lo
+		iface lo inet loopback
+
+	EOL
+
+	for iface in ${ifaces}; do
+		case "$iface" in
+			eth*)
+				setup_network_interface "$iface"
+				;;
+			wlan*)
+				setup_wpa_supplicant
+				setup_network_interface "$iface"
+				;;
+		esac
+	done
+}
+
+start() {
+	copy_config_to_run
+	setup_user_root
+	setup_hostname
+	setup_timezone
+	setup_keyboard
+	setup_network
+}
