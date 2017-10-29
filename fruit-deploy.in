@@ -77,27 +77,29 @@ setup_wpa_supplicant() {
 	password=$(valueof '\["wpa","password"\]')
 
 	if [ "$username" != "" ]; then
-		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<-EOL
-			network={
-				ssid="$ssid"
-				scan_ssid=1
-				key_mgmt=WPA-EAP
-				eap=PEAP
-				phase1="peaplabel=0"
-				phase2="auth=MSCHAPV2"
-				identity="$username"
-				password="$password"
-		EOL
+		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOL
+network={
+	ssid="$ssid"
+	scan_ssid=1
+	key_mgmt=WPA-EAP
+	eap=PEAP
+	phase1="peaplabel=0"
+	phase2="auth=MSCHAPV2"
+	identity="$username"
+	password="$password"
+}
+EOL
 	else
 		wpa_passphrase $ssid $password > /etc/wpa_supplicant/wpa_supplicant.conf
 	fi
-	rc-service wpa_supplicant start && \
-		logger -s -t fruit "Started wpa_supplicant SSID=$ssid"
+	logger -s -t fruit "Set up wpa_supplicant SSID=$ssid"
 }
 
 # $0: interface to be set up
+# $1: interface requires wpa_supplicant
 setup_network_interface() {
 	iface=$1
+	wpa_supp=$2
 	addr=$(valueof "\[\"network\",\"$iface\"\]")
 	if [ "$addr" = "" ]; then
 		addr="dhcp"
@@ -106,10 +108,11 @@ setup_network_interface() {
 	ebegin "Setting $iface to $addr"
 	if [ "$addr" = "dhcp" ]; then
 		cat >> /etc/network/interfaces <<-EOL
+
 			auto $iface
 			iface $iface inet dhcp
-
 		EOL
+		[ "$wpa_supp" = yes ] && printf "\tpre-up rc-service wpa_supplicant start\n" >> /etc/network/interfaces
 		logger -t fruit "Set $iface to $addr"
 	else
 		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
@@ -121,6 +124,7 @@ setup_network_interface() {
 			network=$(sipcalc "$addr" | grep 'Network address\t' | awk '{print $4}')
 			broadcast=$(sipcalc "$addr" | grep 'Broadcast address\t' | awk '{print $4}')
 			cat >> /etc/network/interfaces <<EOL
+
 auto $iface
 iface $iface inet static
 	address $ipaddr
@@ -128,6 +132,7 @@ iface $iface inet static
 	network $network
 	broadcast $broadcast
 EOL
+			[ "$wpa_supp" = yes ] && printf "\tpre-up rc-service wpa_supplicant start\n" >> /etc/network/interfaces
 			logger -t fruit "Set $iface to $addr"
 		fi
 	fi
@@ -152,7 +157,7 @@ setup_network() {
 				;;
 			wlan*)
 				setup_wpa_supplicant
-				setup_network_interface "$iface"
+				setup_network_interface "$iface" "yes"
 				;;
 		esac
 	done
