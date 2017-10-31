@@ -67,11 +67,11 @@ setup_keyboard() {
 }
 
 setup_wpa_supplicant() {
+	ssid=$(valueof '\["wpa","ssid"\]')
+	[ "$ssid" = "" ] && return 1
+
 	[ "$wpa" = yes ] && return 0
 	wpa=yes
-
-	ssid=$(valueof '\["wpa","ssid"\]')
-	[ "$ssid" = "" ] && return 0
 
 	username=$(valueof '\["wpa","username"\]')
 	password=$(valueof '\["wpa","password"\]')
@@ -92,7 +92,9 @@ EOL
 	else
 		wpa_passphrase $ssid $password > /etc/wpa_supplicant/wpa_supplicant.conf
 	fi
+	ret=$?
 	logger -s -t fruit "Set up wpa_supplicant SSID=$ssid"
+	return $ret
 }
 
 # $0: interface to be set up
@@ -156,8 +158,8 @@ setup_network() {
 				setup_network_interface "$iface"
 				;;
 			wlan*)
-				setup_wpa_supplicant
-				setup_network_interface "$iface" "yes"
+				setup_wpa_supplicant && \
+					setup_network_interface "$iface" "yes"
 				;;
 		esac
 	done
