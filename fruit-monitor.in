@@ -1,0 +1,62 @@
+#!/bin/sh
+
+config=/run/fruit.json
+srv_addr=mgmt.fruit-testbed.org
+srv_port=443
+
+valueof() {
+	value=$(JSON.sh < ${config} | grep $1 | cut -f2)
+	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
+		echo
+	else
+		echo ${value} | xargs printf
+	fi
+}
+
+# Send heart-beat
+send_heartbeat() {
+	# generate state file
+	tmpfile=$(mktemp)
+	cat > ${tmpfile} <<-EOL
+	{
+	"serial":"$(cat /proc/cpuinfo | grep "^Serial" | awk '{print $3}')",
+	"revision":"$(cat /proc/cpuinfo | grep "^Revision" | awk '{print $3}')",
+	EOL
+
+	echo '"network": {' >> ${tmpfile}
+	count=0
+	for dev in $(ip -o link show | cut -d' ' -f2 | sed 's/:$//' | grep -v '^lo$'); do
+		[ $count -gt 0 ] && echo ',' >> $file
+		cat >> $file <<-EOL
+		"$dev": {
+		"ip": "$(ip -4 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')",
+		"ip6": "$(ip -6 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')"
+		}
+		EOL
+		count=$((count + 1))
+	done
+	echo '}' >> ${tmpfile}
+
+	echo '}' >> ${tmpfile}
+
+	name=$(hostname)
+	apikey=$(valueof '\["apikey"\]')
+	uri="/api/status/$name"
+	url="https://${apikey}@${srv_addr}:${srv_port}${uri}"
+
+	curl -f -s -X PUT --connect-timeout 5 \
+		-H 'Content-Type: application/json' \
+		-H 'Accept: application/json' \
+		-d @${tmpfile} \
+		${url}
+
+	[ $? -eq 0 ] \
+		&& logger -t fruit "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}"
+		|| logger -t fruit "Failed sent a heartbeat to https://${srv_addr}:${srv_port}${uri}"
+
+	rm ${tmpfile}
+}
+
+send_heartbeat
+
+exit 0
