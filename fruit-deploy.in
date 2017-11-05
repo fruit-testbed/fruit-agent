@@ -165,6 +165,13 @@ setup_network() {
 	done
 }
 
+setup_monitor() {
+	[ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs ] \
+		&& printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root
+		&& rc-update add crond default
+		&& logger -t fruit "Set up fruit-monitor"
+		|| logger -t fruit "Failed to set up fruit-monitor"
+}
 
 ##### main #####
 
@@ -176,5 +183,6 @@ setup_hostname
 setup_timezone
 setup_keyboard
 setup_network
+setup_monitor
 
 exit 0

@@ -51,8 +51,8 @@ send_heartbeat() {
 		${url}
 
 	[ $? -eq 0 ] \
-		&& logger -t fruit "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}"
-		|| logger -t fruit "Failed sent a heartbeat to https://${srv_addr}:${srv_port}${uri}"
+		&& logger -t fruit-monitor "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}"
+		|| logger -t fruit-monitor "Failed sent a heartbeat to https://${srv_addr}:${srv_port}${uri}"
 
 	rm ${tmpfile}
 }
