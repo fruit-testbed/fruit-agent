@@ -26,8 +26,8 @@ send_heartbeat() {
 	echo '"network": {' >> ${tmpfile}
 	count=0
 	for dev in $(ip -o link show | cut -d' ' -f2 | sed 's/:$//' | grep -v '^lo$'); do
-		[ $count -gt 0 ] && echo ',' >> $file
-		cat >> $file <<-EOL
+		[ $count -gt 0 ] && echo ',' >> $tmpfile
+		cat >> $tmpfile <<-EOL
 		"$dev": {
 		"ip": "$(ip -4 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')",
 		"ip6": "$(ip -6 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')"
@@ -49,14 +49,16 @@ send_heartbeat() {
 		-H 'Accept: application/json' \
 		-d @${tmpfile} \
 		${url}
+	ret=$?
 
-	[ $? -eq 0 ] \
-		&& logger -t fruit-monitor "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}"
+	[ $ret -eq 0 ] \
+		&& logger -t fruit-monitor "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}" \
 		|| logger -t fruit-monitor "Failed sent a heartbeat to https://${srv_addr}:${srv_port}${uri}"
 
-	rm ${tmpfile}
+	rm -f ${tmpfile}
+	return $ret
 }
 
 send_heartbeat
 
-exit 0
+exit $?
