@@ -107,7 +107,6 @@ setup_network_interface() {
 		addr="dhcp"
 	fi
 
-	ebegin "Setting $iface to $addr"
 	if [ "$addr" = "dhcp" ]; then
 		cat >> /etc/network/interfaces <<-EOL
 
@@ -138,7 +137,6 @@ EOL
 			logger -t fruit "Set $iface to $addr"
 		fi
 	fi
-	eend $?
 }
 
 setup_network() {
@@ -167,9 +165,9 @@ setup_network() {
 
 setup_monitor() {
 	[ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs ] \
-		&& printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root
-		&& rc-update add crond default
-		&& logger -t fruit "Set up fruit-monitor"
+		&& printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
+		&& rc-update add crond default \
+		&& logger -t fruit "Set up fruit-monitor" \
 		|| logger -t fruit "Failed to set up fruit-monitor"
 }
 
