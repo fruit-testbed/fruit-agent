@@ -1,15 +1,15 @@
 #!/bin/sh
 
-src_config=/boot/fruit.json
+src_config=/media/mmcblk0p1/fruit.json
 config=/run/fruit.json
 
 copy_config_to_run() {
-	[ -e ${src_config} ] \
-		&& cp -f ${src_config} ${config} \
-		|| echo '{}' > ${config}
-	ret=$?
-	[ $ret -ne 0 ] && logger -t fruit "ERROR: cannot copy /boot/fruit.json to /run/fruit.json"
-	return $ret
+	if [ -e ${src_config} ]; then
+		cp -f ${src_config} ${config}
+		[ $ret -ne 0 ] && logger -t fruit "ERROR: cannot copy  to /run/fruit.json"
+	fi
+	[ ! -e ${config} ] && echo '{}' > ${config}
+	return 0
 }
 
 valueof() {
