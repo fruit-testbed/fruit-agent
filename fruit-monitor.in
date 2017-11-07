@@ -21,7 +21,7 @@ send_heartbeat() {
 	{
 	"serial":"$(cat /proc/cpuinfo | grep "^Serial" | awk '{print $3}')",
 	"revision":"$(cat /proc/cpuinfo | grep "^Revision" | awk '{print $3}')",
-	"model":"$(cat /proc/device-tree)",
+	"model":"$(cat /proc/device-tree/model)",
 	EOL
 
 	echo '"network": {' >> ${tmpfile}
