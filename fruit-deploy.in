@@ -164,11 +164,15 @@ setup_network() {
 }
 
 setup_monitor() {
-	[ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs ] \
-		&& printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
-		&& rc-update add crond default \
-		&& logger -t fruit "Set up fruit-monitor" \
-		|| logger -t fruit "Failed to set up fruit-monitor"
+	if [ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs/root ] \
+		&& [ "$(grep '/usr/sbin/fruit-monitor' /etc/crontabs)" = "" ]
+	then
+		printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
+			&& rc-update add crond default \
+			&& logger -t fruit "Set up fruit-monitor"
+	else
+		logger -t fruit "Failed to set up fruit-monitor"
+	fi
 }
 
 ##### main #####
