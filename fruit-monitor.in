@@ -20,6 +20,7 @@ send_heartbeat() {
 	cat > ${tmpfile} <<-EOL
 	{
 	"serial":"$(cat /proc/cpuinfo | grep "^Serial" | awk '{print $3}')",
+	"revision":"$(cat /proc/cpuinfo | grep "^Revision" | awk '{print $3}')",
 	"model":"$(cat /proc/device-tree)",
 	EOL
 
