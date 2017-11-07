@@ -6,7 +6,7 @@ config=/run/fruit.json
 copy_config_to_run() {
 	if [ -e ${src_config} ]; then
 		cp -f ${src_config} ${config}
-		[ $ret -ne 0 ] && logger -t fruit "ERROR: cannot copy  to /run/fruit.json"
+		[ $? -ne 0 ] && logger -t fruit "ERROR: cannot copy to /run/fruit.json"
 	fi
 	[ ! -e ${config} ] && echo '{}' > ${config}
 	return 0
