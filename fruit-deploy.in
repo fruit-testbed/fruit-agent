@@ -113,7 +113,10 @@ setup_network_interface() {
 			auto $iface
 			iface $iface inet dhcp
 		EOL
-		[ "$wpa_supp" = yes ] && printf "\tpre-up rc-service wpa_supplicant start\n" >> /etc/network/interfaces
+		[ "$wpa_supp" = yes ] && cat >> /etc/network/interfaces <<EOL
+	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
+	post-down killall -q wpa_supplicant
+EOL
 		logger -t fruit "Set $iface to $addr"
 	else
 		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
@@ -133,7 +136,10 @@ iface $iface inet static
 	network $network
 	broadcast $broadcast
 EOL
-			[ "$wpa_supp" = yes ] && printf "\tpre-up rc-service wpa_supplicant start\n" >> /etc/network/interfaces
+			[ "$wpa_supp" = yes ] && cat >> /etc/network/interfaces <<EOL
+	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
+	post-down killall -q wpa_supplicant
+EOL
 			logger -t fruit "Set $iface to $addr"
 		fi
 	fi
