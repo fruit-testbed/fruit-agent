@@ -97,7 +97,7 @@ EOL
 	return $ret
 }
 
-# $0: interface to be set up
+# $0: interface to be set up
 # $1: interface requires wpa_supplicant
 setup_network_interface() {
 	iface=$1
@@ -181,6 +181,77 @@ setup_monitor() {
 	fi
 }
 
+setup_data_volume() {
+	local mmcdev=/dev/mmcblk0
+	local newdev=/dev/mmcblk0p4
+	# Reference: https://unix.stackexchange.com/questions/136269/corruption-proof-sd-card-filesystem-for-embedded-linux
+	local fstype=btrfs
+	local mkfs=mkfs.btrfs
+	# From https://wiki.debian.org/Btrfs (question: What are the
+	# recommended options for installing on a pendrive, a SD card or
+	# a slow SSD drive?)
+	local fsopts="noatime,compress=lzo,commit=0,ssd_spread,autodefrag"
+	local dir=/media/data
+	local ret=0
+
+	if [ $(fdisk -lu ${mmcdev} | grep "$newdev" | wc -l) -eq 0 ]; then
+		modprobe $fstype 1>/dev/null && \
+		{
+			freesize=$(parted -ms ${mmcdev} unit MB print free | grep ':free;' | tail -1 | cut -d':' -f4)
+			freesize=${freesize%MB}
+			if [ "$freesize" != "" ] && [ ${freesize} -gt 100 ]; then
+				start=$(parted -ms ${mmcdev} unit MB print free | grep ':free;' | tail -1 | cut -d':' -f2)
+				parted -s ${mmcdev} mkpart primary ${fstype} ${start} 100%
+				if [ $(blkid ${newdev} | grep "TYPE=\"${fstype}\"" | wc -l) -eq 0 ]; then
+					${mkfs} -f ${newdev}
+				fi
+			else
+				false
+			fi
+		} && \
+		logger -t fruit "Created data volume"
+		ret=$((ret + $?))
+	fi
+
+	if [ $ret -eq 0 ] && [ $(mount | grep ${newdev} | wc -l) -eq 0 ]; then
+		mkdir -p ${dir} \
+			&& mount -t ${fstype} -o ${fsopts} ${newdev} ${dir} \
+			&& chmod 1777 ${dir} \
+			&& logger -t fruit "Mounted data volume onto ${dir}"
+		ret=$((ret + $?))
+	fi
+
+	[ $ret -ne 0 ] && logger -t fruit "Setup data volume failed"
+
+	return $ret
+}
+
+setup_docker() {
+	local enabled=$(valueof '\["docker"\]')
+	local datadir=/media/data
+	local ret=0
+
+	if [ "$enabled" = "true" ]; then
+		rc-update add docker default \
+			&& logger -t fruit "Enabled Docker daemon at runlevel default"
+		ret=$((ret + $?))
+	fi
+
+	if [ $(mount | grep " on ${datadir} " | wc -l) -ne 0 ]; then
+		target=/var/lib/docker
+		upperdir=${datadir}/.docker/docker
+		workdir=${datadir}/.docker/work
+		mkdir -p ${target} ${upperdir} ${workdir} \
+			&& mount -t overlay -o lowerdir=${target},upperdir=${upperdir},workdir=${workdir} overlay ${target} \
+			&& logger -t fruit "Mounted an overlay on top of /var/lib/docker"
+		ret=$((ret + $?))
+	fi
+
+	[ $ret -ne 0 ] && logger -t fruit "Setup Docker failed"
+
+	return $ret
+}
+
 ##### main #####
 
 copy_config_to_run
@@ -192,5 +263,7 @@ setup_timezone
 setup_keyboard
 setup_network
 setup_monitor
+setup_data_volume
+setup_docker
 
 exit 0
