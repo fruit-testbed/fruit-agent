@@ -2,20 +2,39 @@
 
 src_config=/media/mmcblk0p1/fruit.json
 config_local=/run/fruit.json@local
+config_server=/run/fruit.json@server
 
-copy_config_to_run() {
+copy_config_local_to_run() {
 	if [ -e ${src_config} ]; then
 		cp -f ${src_config} ${config_local}
 		[ $? -ne 0 ] && logger -t fruit "ERROR: cannot copy to /run/fruit.json"
 	fi
 	[ ! -e ${config_local} ] && echo '{}' > ${config_local}
-	return 0
+}
+
+download_config_server_to_run() {
+	local name=$(cat /etc/hostname)
+	local host="fruit-testbed.org"
+	local url="https://${host}/api/node/${name}/config"
+	local api_key=$(valueof '\["api_key"\]')
+	curl -o ${config_server} -H "X-API-Key: ${api_key}" ${url}
+	if [ $? -ne 0 ]; then
+		logger -t fruit "WARNING: failed to download config from server"
+	fi
 }
 
 valueof() {
-	value=$(JSON.sh < ${config_local} | grep $1 | cut -f2)
+	local value=""
+	if [ -e ${config_server} ]; then
+		value=$(JSON.sh < ${config_server} | grep $1 | cut -f2)
+	fi
 	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
-		echo
+		value=$(JSON.sh < ${config_local} | grep $1 | cut -f2)
+		if [ "$value" = "" ] || [ "${value}" = '""' ]; then
+			echo
+		else
+			echo ${value} | xargs printf
+		fi
 	else
 		echo ${value} | xargs printf
 	fi
@@ -35,10 +54,7 @@ serial() {
 }
 
 setup_hostname() {
-	hostname=$(valueof '\["name"\]')
-	if [ "$hostname" = "" ]; then
-		hostname="pi$(serial)"
-	fi
+	hostname="pi$(serial)"
 	echo "$hostname" > /etc/hostname
 	echo "127.0.1.1   $hostname" >> /etc/hosts
 	hostname $hostname
@@ -254,11 +270,10 @@ setup_docker() {
 
 ##### main #####
 
-copy_config_to_run
-[ $? -ne 0 ] && exit 1
-
-setup_user_root
 setup_hostname
+copy_config_local_to_run
+download_config_server_to_run
+setup_user_root
 setup_timezone
 setup_keyboard
 setup_network
