@@ -7,9 +7,10 @@ config_server=/run/fruit.json@server
 copy_config_local_to_run() {
 	if [ -e ${src_config} ]; then
 		cp -f ${src_config} ${config_local}
-		[ $? -ne 0 ] && logger -t fruit "ERROR: cannot copy to /run/fruit.json"
+		[ $? -ne 0 ] && logger -st fruit "ERROR: cannot copy to /run/fruit.json"
 	fi
 	[ ! -e ${config_local} ] && echo '{}' > ${config_local}
+	chmod 0400 ${config_local}
 }
 
 download_config_server_to_run() {
@@ -17,9 +18,15 @@ download_config_server_to_run() {
 	local host="fruit-testbed.org"
 	local url="https://${host}/api/node/${name}/config"
 	local api_key=$(valueof '\["api_key"\]')
-	curl -o ${config_server} -H "X-API-Key: ${api_key}" ${url}
-	if [ $? -ne 0 ]; then
-		logger -t fruit "WARNING: failed to download config from server"
+	if [ "$api_key" != "" ]; then
+		curl -s -o ${config_server} -H "X-API-Key: ${api_key}" ${url}
+		if [ $? -ne 0 ]; then
+			logger -st fruit "WARNING: failed to download config from server"
+		else
+			chmod 0400 ${config_server}
+		fi
+	else
+		logger -st fruit "ERROR: 'api_key' is not defined in fruit.json"
 	fi
 }
 
@@ -78,8 +85,15 @@ setup_keyboard() {
 	fi
 	keymap=$(echo "$keyboard" | cut -d' ' -f1)
 	variant=$(echo "$keyboard" | cut -d' ' -f2)
-	setup-keymap $keymap $variant && \
-		logger -s -t fruit "Set keyboard to keymap=$keymap variant=$variant"
+
+	. /etc/conf.d/keymaps
+	current_variant=$(basename "KEYMAP")
+	current_variant="${variant%%.*}"
+
+	if [ "$current_variant" != "$variant" ]; then
+		setup-keymap $keymap $variant && \
+			logger -s -t fruit "Set keyboard to keymap=$keymap variant=$variant"
+	fi
 }
 
 setup_wpa_supplicant() {
@@ -189,9 +203,11 @@ setup_monitor() {
 	if [ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs/root ] \
 		&& [ "$(grep '/usr/sbin/fruit-monitor' /etc/crontabs)" = "" ]
 	then
-		printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
-			&& rc-update add crond default \
-			&& logger -t fruit "Set up fruit-monitor"
+		if [ $(rc-status -r) != "default" ]; then
+			printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
+				&& rc-update add crond default \
+				&& logger -t fruit "Set up fruit-monitor"
+		fi
 	else
 		logger -t fruit "Failed to set up fruit-monitor"
 	fi
@@ -247,13 +263,14 @@ setup_docker() {
 	local datadir=/media/data
 	local ret=0
 
-	if [ "$enabled" = "true" ]; then
+	if [ "$enabled" = "true" ] && [ "$(rc-update show default | grep docker)" = "" ]; then
 		rc-update add docker default \
 			&& logger -t fruit "Enabled Docker daemon at runlevel default"
 		ret=$((ret + $?))
 	fi
 
-	if [ $(mount | grep " on ${datadir} " | wc -l) -ne 0 ]; then
+	if [ $(mount | grep " on ${datadir} " | wc -l) -ne 0 ] && \
+	   [ $(mount | grep "overlay on /var/lib/docker " | wc -l) -eq 0 ] ; then
 		target=/var/lib/docker
 		upperdir=${datadir}/.docker/docker
 		workdir=${datadir}/.docker/work
@@ -263,7 +280,13 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	[ $ret -ne 0 ] && logger -t fruit "Setup Docker failed"
+	if [ "$enabled" = true ] && [ $(rc-status -r) = "default" ] && \
+	   [ $(rc-service docker status | grep 'status: started' | wc -l) -eq 0 ]; then
+		rc-service docker start
+		ret=$((ret + $?))
+	fi
+
+	[ $ret -ne 0 ] && logger -t fruit "ERROR: Setup Docker failed"
 
 	return $ret
 }
