@@ -1,19 +1,19 @@
 #!/bin/sh
 
 src_config=/media/mmcblk0p1/fruit.json
-config=/run/fruit.json
+config_local=/run/fruit.json@local
 
 copy_config_to_run() {
 	if [ -e ${src_config} ]; then
-		cp -f ${src_config} ${config}
+		cp -f ${src_config} ${config_local}
 		[ $? -ne 0 ] && logger -t fruit "ERROR: cannot copy to /run/fruit.json"
 	fi
-	[ ! -e ${config} ] && echo '{}' > ${config}
+	[ ! -e ${config_local} ] && echo '{}' > ${config_local}
 	return 0
 }
 
 valueof() {
-	value=$(JSON.sh < ${config} | grep $1 | cut -f2)
+	value=$(JSON.sh < ${config_local} | grep $1 | cut -f2)
 	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
 		echo
 	else
