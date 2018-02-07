@@ -79,21 +79,38 @@ setup_timezone() {
 }
 
 setup_keyboard() {
-	keyboard=$(valueof '\["keyboard"\]')
+	local keyboard=$(valueof '\["keyboard"\]')
 	if [ "$keyboard" = "" ]; then
 		keyboard="gb"
 	fi
-	keymap=$(echo "$keyboard" | cut -d' ' -f1)
-	variant=$(echo "$keyboard" | cut -d' ' -f2)
+	local desired_keymap=$(echo "$keyboard" | cut -d' ' -f1)
+	local desired_variant=$(echo "$keyboard" | cut -d' ' -f2)
 
 	. /etc/conf.d/keymaps
-	current_variant=$(basename "KEYMAP")
-	current_variant="${variant%%.*}"
+	local current_variant=$(basename "KEYMAP")
+	local current_variant="${current_variant%%.*}"
 
-	if [ "$current_variant" != "$variant" ]; then
-		setup-keymap $keymap $variant && \
-			logger -st fruit "Set keyboard to keymap=$keymap variant=$variant"
+	if [ "$current_variant" != "$desired_variant" ]; then
+		setup-keymap $desired_keymap $desired_variant && \
+			logger -st fruit "Set keyboard to keymap=$desired_keymap variant=$desired_variant"
 	fi
+}
+
+setup_ntpd() {
+	local ret=0
+	local servers=$(valueof '\["ntp"\]')
+	servers="pool.ntp.org time.apple.com $servers"
+	for server in ${servers}; do
+		echo "server ${server}" >> /etc/ntp.conf
+		ret=$((ret + $?))
+	done
+	[ ${ret} -eq 0 ] \
+		&& echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd \
+		&& rc-update add ntpd default \
+		&& rc-service ntpd start
+	ret=$((ret + $?))
+
+	[ ${ret} -ne 0 ] && logger -st fruit "ERROR: Setup ntpd failed"
 }
 
 setup_wpa_supplicant() {
@@ -273,15 +290,11 @@ setup_docker() {
 	fi
 
 	if [ "$enabled" = true ]; then
-		[ "$(rc-service docker status | grep 'status: started')"  = "" ] \
-			&& rc-service docker start \
-			|| true
-		ret=$((ret + $?))
+		rc-update add docker default && rc-service docker start
 	else
-		[ "$(rc-service docker status | grep 'status: stopped')"  = "" ] \
-			&& rc-service docker stop \
-			|| true
+		rc-update del docker default && rc-service docker stop
 	fi
+	ret=$((ret + $?))
 
 	[ $ret -ne 0 ] && logger -st fruit "ERROR: Setup Docker failed"
 
@@ -299,6 +312,7 @@ case "$(rc-status -r)" in
 		;;
 	default)
 		download_config_server_to_run
+		setup_ntpd
 		setup_user_root
 		setup_timezone
 		setup_keyboard
