@@ -3,7 +3,6 @@
 description="Deploy Fruit configurations."
 
 depend() {
-	before crond ntpd sshd docker
 	after net root bootmisc modules syslog sysctl
 }
 
