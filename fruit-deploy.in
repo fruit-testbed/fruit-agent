@@ -52,7 +52,7 @@ setup_user_root() {
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
 			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
-			logger -s -t fruit "Updated root's password"
+			logger -st fruit "Updated root's password"
 	fi
 }
 
@@ -65,7 +65,7 @@ setup_hostname() {
 	echo "$hostname" > /etc/hostname
 	echo "127.0.1.1   $hostname" >> /etc/hosts
 	hostname $hostname
-	logger -s -t fruit "Set hostname to $hostname"
+	logger -st fruit "Set hostname to $hostname"
 }
 
 setup_timezone() {
@@ -75,7 +75,7 @@ setup_timezone() {
 	fi
 	zone=$(echo "$zone" | awk '{print toupper($0)}')
 	setup-timezone -z $zone && \
-		logger -s -t fruit "Set timezone to $zone"
+		logger -st fruit "Set timezone to $zone"
 }
 
 setup_keyboard() {
@@ -92,7 +92,7 @@ setup_keyboard() {
 
 	if [ "$current_variant" != "$variant" ]; then
 		setup-keymap $keymap $variant && \
-			logger -s -t fruit "Set keyboard to keymap=$keymap variant=$variant"
+			logger -st fruit "Set keyboard to keymap=$keymap variant=$variant"
 	fi
 }
 
@@ -123,7 +123,7 @@ EOL
 		wpa_passphrase $ssid $password > /etc/wpa_supplicant/wpa_supplicant.conf
 	fi
 	ret=$?
-	logger -s -t fruit "Set up wpa_supplicant SSID=$ssid"
+	logger -st fruit "Set up wpa_supplicant SSID=$ssid"
 	return $ret
 }
 
@@ -147,11 +147,11 @@ setup_network_interface() {
 	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
 	post-down killall -q wpa_supplicant
 EOL
-		logger -t fruit "Set $iface to $addr"
+		logger -st fruit "Set $iface to $addr"
 	else
 		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
 		if [ "$ipaddr" = "" ]; then
-			logger -t fruit "ERROR: invalid address of $iface: $ipaddr"
+			logger -st fruit "ERROR: invalid address of $iface: $ipaddr"
 			false
 		else
 			netmask=$(sipcalc "$addr" | grep 'Network mask\t' | awk '{print $4}')
@@ -170,7 +170,7 @@ EOL
 	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
 	post-down killall -q wpa_supplicant
 EOL
-			logger -t fruit "Set $iface to $addr"
+			logger -st fruit "Set $iface to $addr"
 		fi
 	fi
 }
@@ -203,13 +203,11 @@ setup_monitor() {
 	if [ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs/root ] \
 		&& [ "$(grep '/usr/sbin/fruit-monitor' /etc/crontabs)" = "" ]
 	then
-		if [ $(rc-status -r) != "default" ]; then
-			printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
-				&& rc-update add crond default \
-				&& logger -t fruit "Set up fruit-monitor"
-		fi
+		printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
+			&& rc-update add crond default \
+			&& logger -st fruit "Set up fruit-monitor"
 	else
-		logger -t fruit "Failed to set up fruit-monitor"
+		logger -st fruit "ERROR: Failed to set up fruit-monitor"
 	fi
 }
 
@@ -241,7 +239,7 @@ setup_data_volume() {
 				false
 			fi
 		} && \
-		logger -t fruit "Created data volume"
+		logger -st fruit "Created data volume"
 		ret=$((ret + $?))
 	fi
 
@@ -249,11 +247,11 @@ setup_data_volume() {
 		mkdir -p ${dir} \
 			&& mount -t ${fstype} -o ${fsopts} ${newdev} ${dir} \
 			&& chmod 1777 ${dir} \
-			&& logger -t fruit "Mounted data volume onto ${dir}"
+			&& logger -st fruit "Mounted data volume onto ${dir}"
 		ret=$((ret + $?))
 	fi
 
-	[ $ret -ne 0 ] && logger -t fruit "Setup data volume failed"
+	[ $ret -ne 0 ] && logger -st fruit "ERROR: Setup data volume failed"
 
 	return $ret
 }
@@ -262,12 +260,6 @@ setup_docker() {
 	local enabled=$(valueof '\["docker"\]')
 	local datadir=/media/data
 	local ret=0
-
-	if [ "$enabled" = "true" ] && [ "$(rc-update show default | grep docker)" = "" ]; then
-		rc-update add docker default \
-			&& logger -t fruit "Enabled Docker daemon at runlevel default"
-		ret=$((ret + $?))
-	fi
 
 	if [ $(mount | grep " on ${datadir} " | wc -l) -ne 0 ] && \
 	   [ $(mount | grep "overlay on /var/lib/docker " | wc -l) -eq 0 ] ; then
@@ -280,13 +272,18 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	if [ "$enabled" = true ] && [ $(rc-status -r) = "default" ] && \
-	   [ $(rc-service docker status | grep 'status: started' | wc -l) -eq 0 ]; then
-		rc-service docker start
+	if [ "$enabled" = true ]; then
+		[ "$(rc-service docker status | grep 'status: started')"  = "" ] \
+			&& rc-service docker start \
+			|| true
 		ret=$((ret + $?))
+	else
+		[ "$(rc-service docker status | grep 'status: stopped')"  = "" ] \
+			&& rc-service docker stop \
+			|| true
 	fi
 
-	[ $ret -ne 0 ] && logger -t fruit "ERROR: Setup Docker failed"
+	[ $ret -ne 0 ] && logger -st fruit "ERROR: Setup Docker failed"
 
 	return $ret
 }
@@ -298,13 +295,13 @@ case "$(rc-status -r)" in
 		copy_config_local_to_run
 		setup_hostname
 		setup_network
+		setup_monitor
 		;;
 	default)
 		download_config_server_to_run
 		setup_user_root
 		setup_timezone
 		setup_keyboard
-		setup_monitor
 		setup_data_volume
 		setup_docker
 		;;
