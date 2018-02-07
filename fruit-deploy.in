@@ -293,15 +293,24 @@ setup_docker() {
 
 ##### main #####
 
-setup_hostname
-copy_config_local_to_run
-download_config_server_to_run
-setup_user_root
-setup_timezone
-setup_keyboard
-setup_network
-setup_monitor
-setup_data_volume
-setup_docker
+case "$(rc-status -r)" in
+	boot)
+		copy_config_local_to_run
+		setup_hostname
+		setup_network
+		;;
+	default)
+		download_config_server_to_run
+		setup_user_root
+		setup_timezone
+		setup_keyboard
+		setup_monitor
+		setup_data_volume
+		setup_docker
+		;;
+	*)
+		true
+		;;
+esac
 
 exit 0
