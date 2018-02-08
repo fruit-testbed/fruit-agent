@@ -1,5 +1,7 @@
 #!/bin/sh
 
+server_address="fruit-testbed.org"
+server_api_prefix="/api"
 src_config=/media/mmcblk0p1/fruit.json
 config_local=/run/fruit.json@local
 config_server=/run/fruit.json@server
@@ -13,21 +15,54 @@ copy_config_local_to_run() {
 	chmod 0400 ${config_local}
 }
 
-download_config_server_to_run() {
+download_resource() {
+	# $1: resource name to be download
+	# $2: target output file
+
 	local name=$(cat /etc/hostname)
-	local host="fruit-testbed.org"
-	local url="https://${host}/api/node/${name}/config"
+	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
 	local api_key=$(valueof '\["api_key"\]')
-	if [ "$api_key" != "" ]; then
-		curl -s -o ${config_server} -H "X-API-Key: ${api_key}" ${url}
-		if [ $? -ne 0 ]; then
-			logger -st fruit "WARNING: failed to download config from server"
-		else
-			chmod 0400 ${config_server}
-		fi
-	else
-		logger -st fruit "ERROR: 'api_key' is not defined in fruit.json"
-	fi
+	[ "$api_key" = "" ] \
+		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
+		&& return 1
+	mkdir -p "$(dirname "$2")" \
+		&& curl -sL -o "$2" -H "X-API-Key: ${api_key}" ${url}
+	return $?
+}
+
+download_config_server_to_run() {
+	download_resource "config" ${config_server}
+	[ $? -ne 0 ] \
+		&& logger -st fruit "WARNING: Failed downloading config from server" \
+		&& return 1
+	chmod 0400 ${config_server}
+	return $?
+}
+
+download_ssh_public_key() {
+	local target="/root/.ssh/authorized_keys"
+	download_resource "ssh_key" ${target}
+	[ $? -ne 0 ] \
+		&& logger -st fruit "WARNING: Failed to download SSH Public Key from server"
+		&& return 0
+	chmod 0700 $(dirname "$target") && chmod 0640 ${target}
+	return $?
+}
+
+setup_openvpn() {
+	# TODO: revisit this
+	local enabled=$(valueof '\["vpn"\]')
+	[ "$enabled" != true ] && return 0
+
+	local target="/run/openvpn.tar.gz"
+	download_resource "openvpn" ${target}
+	[ $? -ne 0 ] \
+		&& logget -st fruit "WARNING: Failed to download OpenVPN config from server"
+		&& return 1
+	tar -C /etc/openvpn/ -xzf ${target} \
+		&& rc-update add openvpn default
+		&& rc-service openvpn start
+	return $?
 }
 
 valueof() {
@@ -221,7 +256,6 @@ setup_monitor() {
 		&& [ "$(grep '/usr/sbin/fruit-monitor' /etc/crontabs)" = "" ]
 	then
 		printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
-			&& rc-update add crond default \
 			&& logger -st fruit "Set up fruit-monitor"
 	else
 		logger -st fruit "ERROR: Failed to set up fruit-monitor"
@@ -290,9 +324,13 @@ setup_docker() {
 	fi
 
 	if [ "$enabled" = true ]; then
-		rc-update add docker default && rc-service docker start
+		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] \
+			&& rc-update add docker default
+		rc-service docker start
 	else
-		rc-update del docker default && rc-service docker stop
+		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] \
+			&& rc-update del docker default
+		rc-service docker stop
 	fi
 	ret=$((ret + $?))
 
@@ -312,12 +350,14 @@ case "$(rc-status -r)" in
 		;;
 	default)
 		download_config_server_to_run
+		download_ssh_public_key
 		setup_ntpd
 		setup_user_root
 		setup_timezone
 		setup_keyboard
 		setup_data_volume
 		setup_docker
+		#setup_openvpn
 		;;
 	*)
 		true
