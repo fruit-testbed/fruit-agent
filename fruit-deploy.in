@@ -50,19 +50,20 @@ download_ssh_public_key() {
 }
 
 setup_openvpn() {
-	# TODO: revisit this
 	local enabled=$(valueof '\["vpn"\]')
 	[ "$enabled" != true ] && return 0
 
-	local target="/run/openvpn.tar.gz"
-	download_resource "openvpn" ${target}
+	local config="/run/openvpn.tar.gz"
+	download_resource "openvpn" ${config}
 	[ $? -ne 0 ] \
-		&& logget -st fruit "WARNING: Failed to download OpenVPN config from server" \
+		&& logger -st fruit "WARNING: Failed to download OpenVPN config from server" \
 		&& return 1
-	tar -C /etc/openvpn/ -xzf ${target} \
+	tar -C /etc/openvpn/ -xzf ${config} \
 		&& rc-update add openvpn default \
 		&& rc-service openvpn start
-	return $?
+	local ret=$?
+	[ $ret -ne 0 ] && logger -st fruit "ERROR: Failed to setup OpenVPN"
+	return $ret
 }
 
 valueof() {
@@ -364,7 +365,7 @@ case "$(rc-status -r)" in
 		setup_keyboard
 		setup_data_volume
 		setup_docker
-		#setup_openvpn
+		setup_openvpn
 		;;
 	*)
 		true
