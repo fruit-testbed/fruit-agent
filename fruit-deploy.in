@@ -56,18 +56,25 @@ status() {
 
 setup_openvpn() {
 	local enabled=$(valueof '\["vpn"\]')
-	[ "$enabled" != true ] && return 0
+	if [ "$enabled" != true ]; then
+		[ $(status openvpn) != "stopped" ] && rc-service openvpn stop
+		return 0
+	fi
 
 	local config="/run/openvpn.tar.gz"
-	download_resource "openvpn" ${config}
+	download_resource "openvpn" "${config}.new"
 	[ $? -ne 0 ] \
 		&& logger -st fruit "WARNING: Failed to download OpenVPN config from server" \
 		&& return 1
-	tar -C /etc/openvpn/ -xzf ${config} \
-		&& rc-update add openvpn default \
-		&& rc-service openvpn start
-	[ $(status openvpn) = "stopped" ] && logger -st fruit "ERROR: Failed to setup OpenVPN"
-	return $ret
+	diff ${config} ${config}.new 1>/dev/null 2>/dev/null
+	if [ $? -ne 0 ]; then
+		mv -f ${config}.new ${config} \
+			&& chmod 0600 ${config} \
+			&& tar -C /etc/openvpn/ -xzf ${config}
+		[ $(status openvpn) != "stopped" ] && rc-service openvpn stop
+		rc-service openvpn start
+	fi
+	return 0
 }
 
 valueof() {
