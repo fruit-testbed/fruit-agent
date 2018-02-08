@@ -49,6 +49,11 @@ download_ssh_public_key() {
 	return $?
 }
 
+status() {
+	# $1: service name
+	echo $(rc-service openvpn status | awk '{print $3}')
+}
+
 setup_openvpn() {
 	local enabled=$(valueof '\["vpn"\]')
 	[ "$enabled" != true ] && return 0
@@ -61,8 +66,7 @@ setup_openvpn() {
 	tar -C /etc/openvpn/ -xzf ${config} \
 		&& rc-update add openvpn default \
 		&& rc-service openvpn start
-	local ret=$?
-	[ $ret -ne 0 ] && logger -st fruit "ERROR: Failed to setup OpenVPN"
+	[ $(status openvpn) = "stopped" ] && logger -st fruit "ERROR: Failed to setup OpenVPN"
 	return $ret
 }
 
@@ -324,13 +328,11 @@ setup_docker() {
 	fi
 
 	if [ "$enabled" = true ]; then
-		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] \
-			&& rc-update add docker default
-		rc-service docker start
+		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
+		[ $(status docker) = "stopped" ] && rc-service docker start
 	else
-		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] \
-			&& rc-update del docker default
-		rc-service docker stop
+		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
+		[ $(status docker) = "started" ] && rc-service docker stop
 	fi
 	ret=$((ret + $?))
 
