@@ -141,7 +141,6 @@ setup_ntpd() {
 	done
 	[ ${ret} -eq 0 ] \
 		&& echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd \
-		&& rc-update add ntpd default \
 		&& rc-service ntpd start
 	ret=$((ret + $?))
 
