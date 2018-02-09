@@ -262,17 +262,6 @@ setup_network() {
 	done
 }
 
-setup_monitor() {
-	if [ -e /usr/sbin/fruit-monitor ] && [ -e /etc/crontabs/root ] \
-		&& [ "$(grep '/usr/sbin/fruit-monitor' /etc/crontabs)" = "" ]
-	then
-		printf "*/1\t*\t*\t*\t*\t/usr/sbin/fruit-monitor" >> /etc/crontabs/root \
-			&& logger -st fruit "Set up fruit-monitor"
-	else
-		logger -st fruit "ERROR: Failed to set up fruit-monitor"
-	fi
-}
-
 setup_data_volume() {
 	local mmcdev=/dev/mmcblk0
 	local newdev=/dev/mmcblk0p4
@@ -355,15 +344,30 @@ setup_sshd() {
 	return $?
 }
 
+setup_cron() {
+	cat >> /etc/crontabs/root <<-EOL
+	*/1   *  *  *  *  /usr/sbin/fruit-monitor
+	*/10  *  *  *  *  /usr/sbin/fruit-config cron
+	EOL
+	logger -st fruit "Added cron entries of fruit-monitor and fruit-config"
+}
+
 ##### main #####
+
+[ $(ps -o args | grep fruit-config | grep -v grep | wc -l) -ne 0 ] \
+	&& logger -st fruit "ERROR: Another instance of fruit-config is running" \
+	&& exit 1
+
+# random sleep between 0-300 seconds
+[ "$1" = "cron" ] && sleep $(shuf -i 0-300 -n 1)
 
 case "$(rc-status -r)" in
 	boot)
 		copy_config_local_to_run
 		setup_hostname
 		setup_network
-		setup_monitor
 		setup_sshd
+		setup_cron
 		;;
 	default)
 		download_config_server_to_run
