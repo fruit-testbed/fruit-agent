@@ -26,7 +26,7 @@ download_resource() {
 		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
 		&& return 1
 	mkdir -p "$(dirname "$2")" \
-		&& curl -sL -o "$2" -H "X-API-Key: ${api_key}" ${url}
+		&& curl --connect-timeout 5 -sL -o "$2" -H "X-API-Key: ${api_key}" ${url}
 	return $?
 }
 
@@ -74,6 +74,7 @@ setup_openvpn() {
 		[ $(status openvpn) != "stopped" ] && rc-service openvpn stop
 		rc-service openvpn start
 	fi
+	rm -f ${config}.new
 	return 0
 }
 
@@ -121,8 +122,9 @@ setup_timezone() {
 		zone="GB"
 	fi
 	zone=$(echo "$zone" | awk '{print toupper($0)}')
-	setup-timezone -z $zone && \
-		logger -st fruit "Set timezone to $zone"
+	[ ! -f /etc/zoneinfo/${zone} ] \
+		&& setup-timezone -z $zone \
+		&& logger -st fruit "Set timezone to $zone"
 }
 
 setup_keyboard() {
@@ -130,33 +132,28 @@ setup_keyboard() {
 	if [ "$keyboard" = "" ]; then
 		keyboard="gb"
 	fi
-	local desired_keymap=$(echo "$keyboard" | cut -d' ' -f1)
-	local desired_variant=$(echo "$keyboard" | cut -d' ' -f2)
-
-	. /etc/conf.d/keymaps
-	local current_variant=$(basename "KEYMAP")
-	local current_variant="${current_variant%%.*}"
-
-	if [ "$current_variant" != "$desired_variant" ]; then
-		setup-keymap $desired_keymap $desired_variant && \
-			logger -st fruit "Set keyboard to keymap=$desired_keymap variant=$desired_variant"
-	fi
+	local keymap=$(echo "$keyboard" | cut -d' ' -f1)
+	local variant=$(echo "$keyboard" | cut -d' ' -f2)
+	[ -f /etc/keymap/${variant}.bmap.gz ] && return 0
+	setup-keymap $keymap $variant && \
+		logger -st fruit "Set keyboard to keymap=$keymap variant=$variant"
 }
 
-setup_ntpd() {
-	local ret=0
-	local servers=$(valueof '\["ntp"\]')
-	servers="pool.ntp.org time.apple.com $servers"
-	for server in ${servers}; do
-		echo "server ${server}" >> /etc/ntp.conf
-		ret=$((ret + $?))
+setup_ntp_boot() {
+	for s in "pool.ntp.org time.apple.com $(valueof '\["ntp"\]')"; do
+		echo "server ${s}" >> /etc/ntp.conf
 	done
-	[ ${ret} -eq 0 ] \
-		&& echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd \
-		&& rc-service ntpd start
-	ret=$((ret + $?))
+	echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd
+}
 
-	[ ${ret} -ne 0 ] && logger -st fruit "ERROR: Setup ntpd failed"
+setup_ntp_default() {
+	local restart=0
+	for s in pool.ntp.org time.apple.com $(valueof '\["ntp"\]'); do
+		grep "^server ${s}$" /etc/ntp.conf 1>/dev/null 2>/dev/null
+		[ $? -ne 0 ] && echo "server ${s}" >> /etc/ntp.conf && restart=1
+	done
+	[ $restart -ne 0 ] && rc-service ntpd restart
+	return 0
 }
 
 setup_wpa_supplicant() {
@@ -325,10 +322,10 @@ setup_docker() {
 
 	if [ "$enabled" = true ]; then
 		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
-		[ $(status docker) = "stopped" ] && rc-service docker start
+		[ $(status docker) = "stopped" ] && rc-service docker start || true
 	else
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
-		[ $(status docker) = "started" ] && rc-service docker stop
+		[ $(status docker) = "started" ] && rc-service docker stop || true
 	fi
 	ret=$((ret + $?))
 
@@ -346,20 +343,24 @@ setup_sshd() {
 
 setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
-	*/1   *  *  *  *  /usr/sbin/fruit-monitor
-	*/10  *  *  *  *  /usr/sbin/fruit-config cron
+	*/1   *  *  *  *  fruit-monitor
+	*/15  *  *  *  *  timeout -t 600 fruit-config cron
 	EOL
 	logger -st fruit "Added cron entries of fruit-monitor and fruit-config"
 }
 
 ##### main #####
 
-[ $(ps -o args | grep fruit-config | grep -v grep | wc -l) -ne 0 ] \
-	&& logger -st fruit "ERROR: Another instance of fruit-config is running" \
+lockfile="/run/$(basename $0).lock"
+[ -f lockfile ] && [ "$(find ${lockfile} -mmin -30 2>/dev/null)" = "" ] \
+	&& logger -st fruit "ERROR: Lock file ${lockfile} exists" \
 	&& exit 1
 
-# random sleep between 0-300 seconds
-[ "$1" = "cron" ] && sleep $(shuf -i 0-300 -n 1)
+rm -f ${lockfile}
+touch ${lockfile}
+
+# random sleep between 0-299 seconds
+[ "$1" = "cron" ] && sleep $(shuf -i 0-299 -n 1)
 
 case "$(rc-status -r)" in
 	boot)
@@ -368,11 +369,12 @@ case "$(rc-status -r)" in
 		setup_network
 		setup_sshd
 		setup_cron
+		setup_ntp_boot
 		;;
 	default)
 		download_config_server_to_run
 		download_ssh_public_key
-		setup_ntpd
+		setup_ntp_default
 		setup_user_root
 		setup_timezone
 		setup_keyboard
@@ -384,5 +386,7 @@ case "$(rc-status -r)" in
 		true
 		;;
 esac
+
+rm -f ${lockfile}
 
 exit 0
