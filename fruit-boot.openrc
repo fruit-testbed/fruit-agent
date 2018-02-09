@@ -9,7 +9,7 @@ depend() {
 }
 
 start() {
-	/usr/sbin/fruit-deploy
+	/usr/sbin/fruit-config
 	return $?
 }
 
