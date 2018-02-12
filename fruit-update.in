@@ -47,7 +47,9 @@ umount_non_active() {
 }
 
 apply_update() {
-	apk -q --no-cache --root $non_active_dir --purge --wait 1200 upgrade
+	apk -q --no-cache --root $non_active_dir --purge --wait 1200 upgrade \
+		1>/tmp/.fruit-update.apk.stdout \
+		2>/tmp/.fruit-update.apk.stderr
 	return $?
 }
 
@@ -76,8 +78,11 @@ mark_dirty $non_active && \
 	umount_non_active && \
 	mark_clean $non_active
 ret=$?
-[ $ret -eq 0 ] && \
-	logger -st fruit "Successfully updated $non_active" || \
+if [ $ret -eq 0 ]; then
+	total=$(grep " Upgrading " /tmp/.fruit-update.apk.stdout | wc -l)
+	logger -st fruit "Successfully updated $non_active ($total packages upgraded)"
+else
 	logger -st fruit "ERROR: Failed updating $non_active"
+fi
 
 exit $ret
