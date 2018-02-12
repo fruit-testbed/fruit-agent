@@ -345,6 +345,7 @@ setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
 	*/1   *  *  *  *  fruit-monitor
 	*/15  *  *  *  *  timeout -t 600 fruit-config cron
+	0     *  *  *  *  fruit-update cron
 	EOL
 	logger -st fruit "Added cron entries of fruit-monitor and fruit-config"
 }
