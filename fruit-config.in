@@ -363,6 +363,14 @@ fix_syslogd_timestamp() {
 	rc-service syslog restart
 }
 
+setup_avahi() {
+	[ ! -f /etc/avahi/avahi-daemon.conf ] && return 1
+	sed -i "s/^#host-name=.*$/host-name=$(hostname)/" /etc/avahi/avahi-daemon.conf
+	sed -i "s/^#domain-name=.*$/domain-name=local/" /etc/avahi/avahi-daemon.conf
+	sed -i "s/^#enable-wide-area=.*$/enable-wide-area=no/" /etc/avahi/avahi-daemon.conf
+	return 0
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -384,6 +392,7 @@ case "$(rc-status -r)" in
 		setup_sshd
 		setup_cron
 		setup_ntp_boot
+		setup_avahi
 		fix_syslogd_config
 		;;
 	default)
