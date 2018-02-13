@@ -1,0 +1,19 @@
+#!/bin/sh
+
+config_local=/run/fruit.json@local
+config_server=/run/fruit.json@server
+
+value=""
+if [ -e ${config_server} ]; then
+	value=$(JSON.sh < ${config_server} | grep $1 | cut -f2)
+fi
+if [ "$value" = "" ] || [ "${value}" = '""' ]; then
+	value=$(JSON.sh < ${config_local} | grep $1 | cut -f2)
+	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
+		echo
+	else
+		echo ${value} | xargs printf
+	fi
+else
+	echo ${value} | xargs printf
+fi
