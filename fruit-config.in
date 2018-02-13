@@ -358,6 +358,11 @@ fix_syslogd_config() {
 	return $?
 }
 
+fix_syslogd_timestamp() {
+	# restart syslogd so it can pick up updated system time set by ntp
+	rc-service syslog restart
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -383,10 +388,11 @@ case "$(rc-status -r)" in
 		;;
 	default)
 		download_config_server_to_run
-		download_ssh_public_key
-		setup_ntp_default
-		setup_user_root
 		setup_timezone
+		setup_ntp_default
+		fix_syslogd_timestamp
+		download_ssh_public_key
+		setup_user_root
 		setup_keyboard
 		setup_data_volume
 		setup_docker
