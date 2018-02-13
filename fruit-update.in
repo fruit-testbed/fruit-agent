@@ -76,7 +76,8 @@ mark_dirty $non_active && \
 	mount_non_active && \
 	apply_update && \
 	umount_non_active && \
-	mark_clean $non_active
+	mark_clean $non_active && \
+	touch /run/fruit-update.reboot
 ret=$?
 if [ $ret -eq 0 ]; then
 	total=$(grep " Upgrading " /tmp/.fruit-update.apk.stdout | wc -l)

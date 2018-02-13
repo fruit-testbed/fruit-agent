@@ -346,6 +346,7 @@ setup_cron() {
 	*/1   *  *  *  *  fruit-monitor
 	*/15  *  *  *  *  timeout -t 600 fruit-config cron
 	0     *  *  *  *  fruit-update cron
+	59    4  *  *  *  [ -f /run/fruit-update.reboot ] && reboot || true
 	EOL
 	logger -st fruit "Added cron entries of fruit-monitor and fruit-config"
 }
