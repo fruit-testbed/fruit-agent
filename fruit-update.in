@@ -11,7 +11,7 @@ non_active_dir=/media/nonactive
 flag_dir=/media/mmcblk0p1
 flag_file="$flag_dir/$(echo "$non_active" | sed 's/\//./g').dirty"
 
-logger -st fruit "Updating $non_active (flag-file: $flag_file)"
+logger -st fruit "Updating $non_active"
 
 mark_dirty() {
 	# $1: mark partition $1 as dirty
@@ -54,7 +54,12 @@ apply_update() {
 }
 
 recover_non_active() {
+	logger -st fruit "Recovering $non_active"
 	dd if=$active of=$non_active 2>/dev/null
+	local ret=$?
+	[ $ret -eq 0 ] && \
+		logger -st fruit "Successfully recovered $non_active" || \
+		logger -st fruit "ERROR: Failed recovering $non_active"
 	return $?
 }
 
@@ -64,10 +69,16 @@ umount_non_active
 	exit 1
 
 if [ -f $flag_file ]; then
-	# do recovery since non-active is dirty
-	recover_non_active
-	[ $? -ne 0 ] && logger -st fruit "ERROR: Failed recovering $non_active"
-	exit 2
+	enabled_recovery=$(fruit-value '\["root_partition_recovery"\]')
+	if [ "$enabled_recovery" != "false" ]; then
+		logger -st fruit "WARNING: $non_active is dirty"
+		# do recovery since non-active is dirty
+		recover_non_active
+		[ $? -ne 0 ] && exit 2
+	else
+		logger -st fruit "ERROR: $non_active is dirty but recovery is disabled (root_partition_recovery=false)"
+		exit 3
+	fi
 fi
 
 # mark non-active root partition as dirty
