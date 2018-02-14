@@ -1,65 +1,195 @@
-#!/bin/sh
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-config=/run/fruit.json
-srv_addr=mgmt.fruit-testbed.org
-srv_port=443
+import json
+import subprocess as sp
+import re
+import os.path as path
+import tempfile
+import os
+import sys
 
-valueof() {
-	value=$(JSON.sh < ${config} | grep $1 | cut -f2)
-	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
-		echo
-	else
-		echo ${value} | xargs printf
-	fi
-}
 
-# Send heart-beat
-send_heartbeat() {
-	# generate state file
-	tmpfile=$(mktemp)
-	cat > ${tmpfile} <<-EOL
-	{
-	"serial":"$(cat /proc/cpuinfo | grep "^Serial" | awk '{print $3}')",
-	"revision":"$(cat /proc/cpuinfo | grep "^Revision" | awk '{print $3}')",
-	"model":"$(cat /proc/device-tree/model)",
-	EOL
+def _memory():
+    lines = sp.check_output(["free", "-b"]).splitlines()
+    _, total, used, free, _, buffers, _ = re.split("\s+", lines[1].strip())
+    return {
+        "total": total,
+        "used": used,
+        "free": free,
+        "buffers": buffers
+    }
 
-	echo '"network": {' >> ${tmpfile}
-	count=0
-	for dev in $(ip -o link show | cut -d' ' -f2 | sed 's/:$//' | grep -v '^lo$'); do
-		[ $count -gt 0 ] && echo ',' >> $tmpfile
-		cat >> $tmpfile <<-EOL
-		"$dev": {
-		"ip": "$(ip -4 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')",
-		"ip6": "$(ip -6 addr show dev $dev scope global 2>/dev/null | grep inet | awk '{print $2}' | sed 'N;s/\n/,/')"
-		}
-		EOL
-		count=$((count + 1))
-	done
-	echo '}' >> ${tmpfile}
 
-	echo '}' >> ${tmpfile}
+def _volumes():
+    lines = sp.check_output(["df", "-T"]).strip().splitlines()
+    lines.pop(0)
+    included = ["/", "/media/root-rw", "/media/root-ro", "/media/data"]
+    volumes = {}
+    for line in lines:
+        fs, typ, size, used, free, _, mounted = re.split("\s+", line.strip())
+        if mounted in included:
+            volumes[mounted] = {
+                "filesystem": fs,
+                "type": typ,
+                "size": size,
+                "used": used,
+                "free": free,
+            }
+    return volumes
 
-	name=$(hostname)
-	apikey=$(valueof '\["apikey"\]')
-	uri="/api/status/$name"
-	url="https://${apikey}@${srv_addr}:${srv_port}${uri}"
 
-	curl -f -s -X PUT --connect-timeout 5 \
-		-H 'Content-Type: application/json' \
-		-H 'Accept: application/json' \
-		-d @${tmpfile} \
-		${url}
-	ret=$?
+def _os_service():
+    lines = sp.check_output(["rc-status", "-C"]).strip().splitlines()
+    lines.pop(0)
+    services = {}
+    for line in lines:
+        name, _, status, _ = re.split("\s+", line.strip())
+        services[name] = status
+    return services
 
-	[ $ret -eq 0 ] \
-		&& logger -t fruit-monitor "Heartbeat sent to https://${srv_addr}:${srv_port}${uri}" \
-		|| logger -t fruit-monitor "Failed sent a heartbeat to https://${srv_addr}:${srv_port}${uri}"
 
-	rm -f ${tmpfile}
-	return $ret
-}
+def _os_mode():
+    mode = sp.check_output(["fruit-value", '\["mode"\]']).strip()
+    if mode not in ["master", "slave"]:
+        mode = "standalone"
+    return mode
 
-send_heartbeat
 
-exit $?
+def _os_hostname():
+    with open("/etc/hostname", "r") as fin:
+        return fin.read().strip()
+
+
+def _os_master_address():
+    # TODO: implement this when creating OS image for master node
+    return None
+
+
+def _os():
+    return {
+        "version": sp.check_output(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
+        "built_timestamp": sp.check_output(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
+        "mode": _os_mode(),
+        "timezone": sp.check_output(["date", "+%Z %z"]).strip(),
+        "local_datetime": sp.check_output(["date"]).strip(),
+        "service": _os_service(),
+        "master_address": _os_master_address(),
+        "hostname": _os_hostname(),
+    }
+
+
+def _docker():
+    return {
+        "images": _docker_images(),
+        "containers": _docker_containers(),
+    }
+
+
+def _docker_images():
+    cmd = ["curl", "-s", "--unix-socket", "/var/run/docker.sock", "http:/v1.35/images/json?all=true"]
+    return json.loads(sp.check_output(cmd))
+
+
+def _docker_containers():
+    cmd = ["curl", "-s", "--unix-socket", "/var/run/docker.sock", "http:/v1.35/containers/json?all=true"]
+    return json.loads(sp.check_output(cmd))
+
+
+def _board():
+    cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
+    line = sp.check_output(["grep", "Serial"], stdin=cat.stdout)
+    cat.wait()
+    _, _, serial = re.split("\s+", line.strip())
+    serial = serial.lstrip("0")
+
+    cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
+    line = sp.check_output(["grep", "Revision"], stdin=cat.stdout)
+    cat.wait()
+    _, _, revision = re.split("\s+", line.strip())
+
+    model = sp.check_output(["cat", "/proc/device-tree/model"]).strip()
+    model = model[:-1]
+
+    return {
+        "serial": serial,
+        "revision": revision,
+        "model": model,
+    }
+
+
+def _network():
+    nets = {}
+    lines = sp.check_output(["ip", "-o", "link", "show"]).strip().splitlines()
+    for line in lines:
+        _, iface, _ = line.split(" ", 2)
+        iface = iface.rstrip(":")
+        if iface != "lo":
+            ip = sp.Popen(["ip", "addr", "show", "dev", iface, "scope", "global"], stdout=sp.PIPE)
+            inets = sp.check_output(["grep", " inet"], stdin=ip.stdout)
+            ip.wait()
+            nets[iface] = []
+            for inet in inets.strip().splitlines():
+                _, addr, _ = inet.lstrip().split(" ", 2)
+                nets[iface].append(addr)
+    return nets
+
+
+def _api_key():
+    return sp.check_output(["fruit-value", '\["api_key"\]']).strip()
+
+
+def _fruit_json():
+    local_config = "/run/fruit.json@local"
+    server_config = "/run/fruit.json@server"
+    secrets = ["api_key", "wpa"]
+    if not path.exists(local_config):
+        local = None
+    else:
+        with open(local_config, "r") as fin:
+            local = json.load(fin)
+            for key in secrets:
+                local.pop(key, None)
+
+    if not path.exists(server_config):
+        server = None
+    else:
+        with open(server_config, "r") as fin:
+            server = json.load(fin)
+
+    return {"local": local, "server": server}
+
+
+def generate():
+    return {
+        "os": _os(),
+        "volumes": _volumes(),
+        "docker": _docker(),
+        "board": _board(),
+        "network": _network(),
+        "memory": _memory(),
+        "fruit.json": _fruit_json(),
+    }
+
+
+def send():
+    fd, fname = tempfile.mkstemp(text=True)
+    try:
+        with os.fdopen(fd, 'w') as fout:
+            json.dump(generate(), fout)
+        host = "fruit-testbed.org"
+        url = "https://%s/api/monitor/%s" % (host, _os_hostname())
+        header1 = "Content-Type: application/json"
+        header2 = "X-API-Key: %s" % _api_key()
+        exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
+                                  "-H", header2, "-d", "@%s" % fname, url])
+        return exitcode
+    except:
+        e1, e2, e3 = sys.exc_info()
+        raise e1, e2, e3
+    finally:
+        os.remove(fname)
+
+
+if __name__ == "__main__":
+    sys.exit(send())
