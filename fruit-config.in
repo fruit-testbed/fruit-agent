@@ -51,13 +51,13 @@ download_ssh_public_key() {
 
 status() {
 	# $1: service name
-	echo $(rc-service openvpn status | awk '{print $3}')
+	echo "$(rc-service $1 status | awk '{print $3}')"
 }
 
 setup_openvpn() {
 	local enabled=$(valueof '\["vpn"\]')
 	if [ "$enabled" != true ]; then
-		[ $(status openvpn) != "stopped" ] && rc-service openvpn stop
+		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop
 		return 0
 	fi
 
@@ -71,7 +71,7 @@ setup_openvpn() {
 		mv -f ${config}.new ${config} \
 			&& chmod 0600 ${config} \
 			&& tar -C /etc/openvpn/ -xzf ${config}
-		[ $(status openvpn) != "stopped" ] && rc-service openvpn stop
+		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop
 		rc-service openvpn start
 	fi
 	rm -f ${config}.new
@@ -266,8 +266,8 @@ setup_data_volume() {
 	local fstype=btrfs
 	local mkfs=mkfs.btrfs
 	# From https://wiki.debian.org/Btrfs (question: What are the
-	# recommended options for installing on a pendrive, a SD card or
-	# a slow SSD drive?)
+	# recommended options for installing on a pendrive, a SD card or
+	# slow SSD drive?)
 	local fsopts="noatime,compress=lzo,commit=0,ssd_spread,autodefrag"
 	local dir=/media/data
 	local ret=0
@@ -309,23 +309,27 @@ setup_docker() {
 	local datadir=/media/data
 	local ret=0
 
-	if [ $(mount | grep " on ${datadir} " | wc -l) -ne 0 ] && \
-	   [ $(mount | grep "overlay on /var/lib/docker " | wc -l) -eq 0 ] ; then
-		target=/var/lib/docker
-		upperdir=${datadir}/.docker/docker
-		workdir=${datadir}/.docker/work
-		mkdir -p ${target} ${upperdir} ${workdir} \
-			&& mount -t overlay -o lowerdir=${target},upperdir=${upperdir},workdir=${workdir} overlay ${target} \
-			&& logger -t fruit "Mounted an overlay on top of /var/lib/docker"
+	if [ ! -L /var/lib/docker ] && [ "$(status docker)" == "stopped" ]; then
+		mkdir -p /media/data/.docker \
+			&& rm -rf /var/lib/docker \
+			&& ln -sf /media/data/.docker /var/lib/docker \
+			&& logger -st fruit "Linked /media/data/.docker to /var/lib/docker" \
+			|| logger -st fruit "Failed to link docker data directory to data volume"
 		ret=$((ret + $?))
 	fi
 
+	[ ! -e /etc/docker/daemon.json ] \
+		&& mkdir -p /etc/docker \
+		&& echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json \
+		|| true
+	ret=$((ret + $?)) 
+
 	if [ "$enabled" = true ]; then
 		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
-		[ $(status docker) = "stopped" ] && rc-service docker start || true
+		[ "$(status docker)" = "stopped" ] && rc-service docker start || true
 	else
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
-		[ $(status docker) = "started" ] && rc-service docker stop || true
+		[ "$(status docker)" = "started" ] && rc-service docker stop || true
 	fi
 	ret=$((ret + $?))
 
@@ -359,8 +363,10 @@ fix_syslogd_config() {
 }
 
 fix_syslogd_timestamp() {
-	# restart syslogd so it can pick up updated system time set by ntp
-	rc-service syslog restart
+	if [ "$(tail -1 /var/log/messages | cut -d' ' -f4)" != "$(hostname)" ]; then
+		# restart syslogd so it can pick up updated system time set by ntp
+		rc-service syslog restart
+	fi
 }
 
 setup_avahi() {
