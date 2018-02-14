@@ -21,7 +21,7 @@ download_resource() {
 
 	local name=$(cat /etc/hostname)
 	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
-	local api_key=$(valueof '\["api_key"\]')
+	local api_key=$(fruit-value '\["api_key"\]')
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
 		&& return 1
@@ -55,7 +55,7 @@ status() {
 }
 
 setup_openvpn() {
-	local enabled=$(valueof '\["vpn"\]')
+	local enabled=$(fruit-value '\["vpn"\]')
 	if [ "$enabled" != true ]; then
 		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop
 		return 0
@@ -78,25 +78,8 @@ setup_openvpn() {
 	return 0
 }
 
-valueof() {
-	local value=""
-	if [ -e ${config_server} ]; then
-		value=$(JSON.sh < ${config_server} | grep $1 | cut -f2)
-	fi
-	if [ "$value" = "" ] || [ "${value}" = '""' ]; then
-		value=$(JSON.sh < ${config_local} | grep $1 | cut -f2)
-		if [ "$value" = "" ] || [ "${value}" = '""' ]; then
-			echo
-		else
-			echo ${value} | xargs printf
-		fi
-	else
-		echo ${value} | xargs printf
-	fi
-}
-
 setup_user_root() {
-	hash=$(valueof '\["root-password"\]')
+	hash=$(fruit-value '\["root-password"\]')
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
 			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
@@ -117,7 +100,7 @@ setup_hostname() {
 }
 
 setup_timezone() {
-	zone=$(valueof '\["timezone"\]')
+	zone=$(fruit-value '\["timezone"\]')
 	if [ "$zone" = "" ]; then
 		zone="GB"
 	fi
@@ -128,7 +111,7 @@ setup_timezone() {
 }
 
 setup_keyboard() {
-	local keyboard=$(valueof '\["keyboard"\]')
+	local keyboard=$(fruit-value '\["keyboard"\]')
 	if [ "$keyboard" = "" ]; then
 		keyboard="gb"
 	fi
@@ -140,7 +123,7 @@ setup_keyboard() {
 }
 
 setup_ntp_boot() {
-	for s in "pool.ntp.org time.apple.com $(valueof '\["ntp"\]')"; do
+	for s in "pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]')"; do
 		echo "server ${s}" >> /etc/ntp.conf
 	done
 	echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd
@@ -148,7 +131,7 @@ setup_ntp_boot() {
 
 setup_ntp_default() {
 	local restart=0
-	for s in pool.ntp.org time.apple.com $(valueof '\["ntp"\]'); do
+	for s in pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]'); do
 		grep "^server ${s}$" /etc/ntp.conf 1>/dev/null 2>/dev/null
 		[ $? -ne 0 ] && echo "server ${s}" >> /etc/ntp.conf && restart=1
 	done
@@ -157,14 +140,14 @@ setup_ntp_default() {
 }
 
 setup_wpa_supplicant() {
-	ssid=$(valueof '\["wpa","ssid"\]')
+	ssid=$(fruit-value '\["wpa","ssid"\]')
 	[ "$ssid" = "" ] && return 1
 
 	[ "$wpa" = yes ] && return 0
 	wpa=yes
 
-	username=$(valueof '\["wpa","username"\]')
-	password=$(valueof '\["wpa","password"\]')
+	username=$(fruit-value '\["wpa","username"\]')
+	password=$(fruit-value '\["wpa","password"\]')
 
 	if [ "$username" != "" ]; then
 		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOL
@@ -192,7 +175,7 @@ EOL
 setup_network_interface() {
 	iface=$1
 	wpa_supp=$2
-	addr=$(valueof "\[\"network\",\"$iface\"\]")
+	addr=$(fruit-value "\[\"network\",\"$iface\"\]")
 	if [ "$addr" = "" ]; then
 		addr="dhcp"
 	fi
@@ -305,7 +288,7 @@ setup_data_volume() {
 }
 
 setup_docker() {
-	local enabled=$(valueof '\["docker"\]')
+	local enabled=$(fruit-value '\["docker"\]')
 	local datadir=/media/data
 	local ret=0
 
@@ -322,7 +305,7 @@ setup_docker() {
 		&& mkdir -p /etc/docker \
 		&& echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json \
 		|| true
-	ret=$((ret + $?)) 
+	ret=$((ret + $?))
 
 	if [ "$enabled" = true ]; then
 		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default

@@ -8,6 +8,7 @@ import os.path as path
 import tempfile
 import os
 import sys
+import argparse
 
 
 def _memory():
@@ -111,10 +112,14 @@ def _board():
     model = sp.check_output(["cat", "/proc/device-tree/model"]).strip()
     model = model[:-1]
 
+    with open("/sys/class/thermal/thermal_zone0/temp", "r") as fin:
+        tempC = float(fin.read()) / 1000.
+
     return {
         "serial": serial,
         "revision": revision,
         "model": model,
+        "temperature": tempC,
     }
 
 
@@ -191,5 +196,19 @@ def send():
         os.remove(fname)
 
 
+def print_usage():
+    print "--- Usage ---"
+    print " Send data to server: %s" % sys.argv[0]
+    print "Print data to stdout: %s -" % sys.argv[0]
+
+    
 if __name__ == "__main__":
-    sys.exit(send())
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == "-":
+            json.dump(generate(), sys.stdout)
+            sys.stdout.flush()
+            print ""
+        else:
+            print_usage()
+    else:
+        sys.exit(send())
