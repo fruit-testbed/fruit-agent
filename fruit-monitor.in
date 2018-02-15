@@ -17,6 +17,30 @@ __DOCKER_SOCK__ = "/var/run/docker.sock"
 __DOCKER_API_VERSION__ = "v1.35"
 
 
+def _cpus():
+    data = {}
+    with open("/proc/stat") as fin:
+        for line in fin:
+            if line[:3] != "cpu":
+                break
+            if line[:4] == "cpu ":
+                continue
+            parts = re.split("\s+", line.strip())
+            label = parts.pop(0)
+            user, nice, system, idle, iowait, irq, softirq, steal, guest, \
+                    guest_nice = map(lambda s: float(s), parts)
+            idle = idle + iowait
+            non_idle = user + nice + system + irq + softirq + steal
+            total = idle + non_idle
+            data[label] = {
+                "usage": 100 * non_idle / total,
+                "idle": 100 * idle / total,
+                "user": 100 * user / total,
+                "system": 100 * system / total,
+            }
+    return data
+
+
 def _memory():
     lines = sp.check_output(["free", "-b"]).splitlines()
     _, total, used, free, _, buffers, _ = re.split("\s+", lines[1].strip())
@@ -189,6 +213,7 @@ def generate():
         "docker": _docker(),
         "board": _board(),
         "network": _network(),
+        "cpus": _cpus(),
         "memory": _memory(),
         "fruit.json": _fruit_json(),
     }
