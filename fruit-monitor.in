@@ -141,9 +141,12 @@ def _network():
     nets = {}
     lines = sp.check_output(["ip", "-o", "link", "show"]).strip().splitlines()
     for line in lines:
-        _, iface, _ = line.split(" ", 2)
+        _, iface, _, _, _, _, _, _, state, _ = line.split(" ", 9)
         iface = iface.rstrip(":")
         if iface != "lo":
+            if state == "DOWN":
+                nets[iface] = None
+                continue
             ip = sp.Popen(["ip", "addr", "show", "dev", iface, "scope", "global"], stdout=sp.PIPE)
             inets = sp.check_output(["grep", " inet"], stdin=ip.stdout)
             ip.wait()
