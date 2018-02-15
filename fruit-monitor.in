@@ -9,6 +9,12 @@ import tempfile
 import os
 import sys
 import argparse
+import syslog
+import traceback
+
+
+__DOCKER_SOCK__ = "/var/run/docker.sock"
+__DOCKER_API_VERSION__ = "v1.35"
 
 
 def _memory():
@@ -88,12 +94,20 @@ def _docker():
 
 
 def _docker_images():
-    cmd = ["curl", "-s", "--unix-socket", "/var/run/docker.sock", "http:/v1.35/images/json?all=true"]
+    docker_sock = "/var/run/docker.sock"
+    if not path.exists(docker_sock):
+        return None
+    cmd = ["curl", "-s", "--unix-socket", docker_sock,
+           "http:/%s/images/json?all=true" % __DOCKER_API_VERSION__]
     return json.loads(sp.check_output(cmd))
 
 
 def _docker_containers():
-    cmd = ["curl", "-s", "--unix-socket", "/var/run/docker.sock", "http:/v1.35/containers/json?all=true"]
+    docker_sock = "/var/run/docker.sock"
+    if not path.exists(docker_sock):
+        return None
+    cmd = ["curl", "-s", "--unix-socket", docker_sock,
+           "http:/%s/containers/json?all=true" % __DOCKER_API_VERSION__]
     return json.loads(sp.check_output(cmd))
 
 
@@ -178,19 +192,24 @@ def generate():
 
 
 def send():
+    host = "fruit-testbed.org"
     fd, fname = tempfile.mkstemp(text=True)
     try:
         with os.fdopen(fd, 'w') as fout:
             json.dump(generate(), fout)
-        host = "fruit-testbed.org"
         url = "https://%s/api/monitor/%s" % (host, _os_hostname())
         header1 = "Content-Type: application/json"
         header2 = "X-API-Key: %s" % _api_key()
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
                                   "-H", header2, "-d", "@%s" % fname, url])
+        if exitcode == 0:
+            syslog.syslog("Sent monitoring data to %s" % host)
+        else:
+            syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s" % host)
         return exitcode
     except:
         e1, e2, e3 = sys.exc_info()
+        syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s -- %s" % (host, traceback.format_exc()))
         raise e1, e2, e3
     finally:
         os.remove(fname)
@@ -203,6 +222,7 @@ def print_usage():
 
     
 if __name__ == "__main__":
+    syslog.openlog(ident="fruit-monitor")
     if len(sys.argv) >= 2:
         if sys.argv[1] == "-":
             json.dump(generate(), sys.stdout)
