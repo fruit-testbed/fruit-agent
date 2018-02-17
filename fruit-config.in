@@ -25,9 +25,17 @@ download_resource() {
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
 		&& return 1
+
+	local tmpfile=$(mktemp)
+	curl --connect-timeout 10 -sL -o "$tmpfile" -H "X-API-Key: $api_key" ${url}
+	[ $? -ne 0 ] \
+		&& logger -st fruit "ERROR: Failed to download $url" \
+		&& return 2
 	mkdir -p "$(dirname "$2")" \
-		&& curl --connect-timeout 5 -sL -o "$2" -H "X-API-Key: ${api_key}" ${url}
-	return $?
+		&& cp -f ${tmpfile} "$2"
+	local ret=$?
+	rm -f ${tmpfile}
+	return $ret
 }
 
 download_config_server_to_run() {
