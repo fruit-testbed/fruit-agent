@@ -100,10 +100,19 @@ def _os_master_address():
     return None
 
 
+def _pkg_version(name):
+    try:
+        lines = sp.check_output(["apk", "version", name]).splitlines()
+        return re.split("\s+", lines[1])[0].lstrip("%s-" % name)
+    except:
+        return None
+
+
 def _os():
     return {
         "version": sp.check_output(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
         "built_timestamp": sp.check_output(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
+        "fruit-agent": _pkg_version("fruit-agent"),
         "mode": _os_mode(),
         "timezone": sp.check_output(["date", "+%Z %z"]).strip(),
         "local_datetime": sp.check_output(["date"]).strip(),
