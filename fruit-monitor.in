@@ -108,14 +108,23 @@ def _pkg_version(name):
         return None
 
 
+def _os_uptime():
+    try:
+        with open("/proc/uptime") as fin:
+            return fin.read().split(" ")[0]
+    except:
+        return None
+
+
 def _os():
     return {
         "version": sp.check_output(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
         "built_timestamp": sp.check_output(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
+        "uptime": _os_uptime(),
         "fruit-agent": _pkg_version("fruit-agent"),
         "mode": _os_mode(),
         "timezone": sp.check_output(["date", "+%Z %z"]).strip(),
-        "local_datetime": sp.check_output(["date"]).strip(),
+        "local_datetime": sp.check_output(["date", "-R"]).strip(),
         "service": _os_service(),
         "master_address": _os_master_address(),
         "hostname": _os_hostname(),
