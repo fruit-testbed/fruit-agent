@@ -30,9 +30,13 @@ def find_local_config(path):
 
 def find_server_config(path):
     if os.path.exists(__SERVER_CONFIG__):
-        with open(__SERVER_CONFIG__) as fin:
-            data = json.load(fin)
-        return find_path(path, data)
+        try:
+            with open(__SERVER_CONFIG__) as fin:
+                data = json.load(fin)
+            return find_path(path, data)
+        except:
+            ''' TODO: Log a warning '''
+            pass
     return None
 
 
@@ -52,17 +56,19 @@ def to_path(s):
 
 
 if __name__ == "__main__":
+    '''
+    - exit-code=0 means the path is found and its value is not 'null'
+    - exit-code=1 means the path is not given in the command line argument
+    - exit-code=2 means the path is not found, or its value is 'null'
+    '''
     if len(sys.argv) <= 1:
         sys.exit(1)
     value = find(to_path(sys.argv[1]))
     if value is None:
-        '''
-        TODO: This does not distinguish between None and
-              an empty string. Remove this branch in the future.
-        '''
-        sys.stdout.write("")
-    elif isinstance(value, dict):
-        json.dump(value, sys.stdout)
-    else:
+        sys.exit(2)
+    elif isinstance(value, str) or isinstance(value, unicode):
         sys.stdout.write(str(value))
+    else:
+        json.dump(value, sys.stdout)
     sys.stdout.flush()
+    sys.exit(0)
