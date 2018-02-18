@@ -64,12 +64,17 @@ status() {
 
 setup_openvpn() {
 	local enabled=$(fruit-value '\["vpn"\]')
-	if [ "$enabled" != true ]; then
-		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop
-		return 0
+	local config="/run/openvpn.tar.gz"
+	if [ "$enabled" != "true" ]; then
+		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop || true
+		for filepath in /etc/openvpn/*; do
+			ext="${filepath##*.}"
+			[ "$ext" != "sh" ] && rm -f $filepath
+		done
+		rm -f ${config}
+		return $?
 	fi
 
-	local config="/run/openvpn.tar.gz"
 	download_resource "openvpn" "${config}.new"
 	[ $? -ne 0 ] \
 		&& logger -st fruit "WARNING: Failed to download OpenVPN config from server" \
@@ -79,10 +84,10 @@ setup_openvpn() {
 		mv -f ${config}.new ${config} \
 			&& chmod 0600 ${config} \
 			&& tar -C /etc/openvpn/ -xzf ${config}
-		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop
-		rc-service openvpn start
+		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop || true
 	fi
 	rm -f ${config}.new
+	rc-service openvpn start 2>/dev/null
 	return 0
 }
 
