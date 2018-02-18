@@ -81,10 +81,13 @@ def _os_service():
 
 
 def _os_mode():
-    mode = sp.check_output(["fruit-value", '\["mode"\]']).strip()
-    if mode not in ["master", "slave"]:
-        mode = "standalone"
-    return mode
+    try:
+        mode = sp.check_output(["fruit-value", '\["mode"\]']).strip()
+        if mode in ["master", "slave"]:
+            return mode
+    except sp.CalledProcessError as cpe:
+        pass
+    return "standalone"
 
 
 def _os_hostname():
@@ -182,7 +185,10 @@ def _network():
 
 
 def _api_key():
-    return sp.check_output(["fruit-value", '\["api_key"\]']).strip()
+    try:
+        return sp.check_output(["fruit-value", '\["api_key"\]']).strip()
+    except:
+        return ""
 
 
 def _fruit_json():
