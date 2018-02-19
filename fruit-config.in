@@ -314,11 +314,17 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	[ ! -e /etc/docker/daemon.json ] \
-		&& mkdir -p /etc/docker \
-		&& echo '{"storage-driver": "overlay2"}' > /etc/docker/daemon.json \
-		|| true
-	ret=$((ret + $?))
+	if [ ! -e /etc/docker/daemon.json ]; then
+		mkdir -p /etc/docker
+		cat > /etc/docker/daemon.json <<-EOF
+		{
+			"storage-driver": "overlay2",
+			"ipv6": true,
+			"fixed-cidr-v6": "fc00:1:2::/64"
+		}
+		EOF
+		ret=$((ret + $?))
+	fi
 
 	if [ "$enabled" = true ]; then
 		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
