@@ -392,6 +392,25 @@ setup_etc_ssh_overlay() {
 	return $ret
 }
 
+setup_builtin_led() {
+	# $1: led's path of /sys/*
+	# $2: state
+	if [ "$2" = "on" ]; then
+		echo 0 > $1/brightness
+		echo 1 > $1/brightness
+	elif [ "$2" = "off" ]; then
+		echo 0 > $1/brightness
+	elif [ "$2" != "" ]; then
+		echo 0 > $1/brightness
+		echo "$2" > $1/trigger
+	fi
+}
+
+setup_leds() {
+	setup_builtin_led "/sys/class/leds/led0" $(fruit-value '\["leds","green"\]')
+	setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -419,6 +438,7 @@ case "$(rc-status -r)" in
 		fix_syslogd_config
 		;;
 	default)
+		copy_config_local_to_run
 		download_config_server_to_run
 		setup_timezone
 		setup_ntp_default
@@ -428,6 +448,7 @@ case "$(rc-status -r)" in
 		setup_keyboard
 		setup_docker
 		setup_openvpn
+		setup_leds
 		;;
 	*)
 		true
