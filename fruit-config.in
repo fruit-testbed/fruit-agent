@@ -379,13 +379,17 @@ setup_avahi() {
 	return 0
 }
 
-setup_etc_overlay() {
+setup_etc_ssh_overlay() {
 	mkdir -p /media/data/.etc_ssh/etc_ssh \
 		&& mkdir -p /media/data/.etc_ssh/work \
 		&& mount -t overlay \
 			-o lowerdir=/etc/ssh,upperdir=/media/data/.etc_ssh/etc_ssh,workdir=/media/data/.etc_ssh/work \
 			overlayfs /etc/ssh
-	return $?
+	local ret=$?
+	[ $ret -eq 0 ] \
+		&& logger -st fruit "Mounted an overlay on /etc/ssh" \
+		|| logger -st fruit "Failed to mount an overlay on /etc/ssh"
+	return $ret
 }
 
 ##### main #####
@@ -404,7 +408,7 @@ touch ${lockfile}
 case "$(rc-status -r)" in
 	boot)
 		setup_data_volume
-		setup_etc_overlay
+		setup_etc_ssh_overlay
 		copy_config_local_to_run
 		setup_hostname
 		setup_network
