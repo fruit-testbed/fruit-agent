@@ -379,6 +379,15 @@ setup_avahi() {
 	return 0
 }
 
+setup_etc_overlay() {
+	mkdir -p /media/data/.etc_ssh/etc_ssh \
+		&& mkdir -p /media/data/.etc_ssh/work \
+		&& mount -t overlay \
+			-o lowerdir=/etc/ssh,upperdir=/media/data/.etc_ssh/etc_ssh,workdir=/media/data/.etc_ssh/work \
+			overlayfs /etc/ssh
+	return $?
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -394,6 +403,8 @@ touch ${lockfile}
 
 case "$(rc-status -r)" in
 	boot)
+		setup_data_volume
+		setup_etc_overlay
 		copy_config_local_to_run
 		setup_hostname
 		setup_network
@@ -411,7 +422,6 @@ case "$(rc-status -r)" in
 		download_ssh_public_key
 		setup_user_root
 		setup_keyboard
-		setup_data_volume
 		setup_docker
 		setup_openvpn
 		;;
