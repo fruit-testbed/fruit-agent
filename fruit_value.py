@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 import sys
 import os
@@ -6,7 +7,7 @@ import json
 import re
 
 
-__LOCAL_CONFIG__ = "/run/fruit.json@local"
+__LOCAL_CONFIG__ = "fruit.json"
 __SERVER_CONFIG__ = "/run/fruit.json@server"
 
 __INT__ = re.compile("^[0-9]+$")
