@@ -48,11 +48,11 @@ umount_non_active() {
 
 apply_update() {
 	apk -q --root $non_active_dir update \
-		1>/tmp/.fruit-update.apk-update.stdout \
-		2>/tmp/.fruit-update.apk-update.stderr
+		1>/tmp/.fruit_update.apk-update.stdout \
+		2>/tmp/.fruit_update.apk-update.stderr
 	apk --root $non_active_dir --purge --wait 1200 upgrade \
-		1>/tmp/.fruit-update.apk-upgrade.stdout \
-		2>/tmp/.fruit-update.apk-upgrade.stderr
+		1>/tmp/.fruit_update.apk-upgrade.stdout \
+		2>/tmp/.fruit_update.apk-upgrade.stderr
 	local ret=$?
 	return $ret
 }
@@ -94,8 +94,8 @@ mark_dirty $non_active && \
 	mark_clean $non_active
 ret=$?
 if [ $ret -eq 0 ]; then
-	total=$(grep " Upgrading " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
-	[ $total -gt 0 ] && touch /run/fruit-update.reboot
+	total=$(grep " Upgrading " /tmp/.fruit_update.apk-upgrade.stdout 2>/dev/null | wc -l)
+	[ $total -gt 0 ] && touch /run/fruit_update.reboot
 	logger -st fruit "Updated $non_active ($total packages upgraded)"
 else
 	umount_non_active
