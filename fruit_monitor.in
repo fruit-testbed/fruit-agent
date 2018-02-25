@@ -274,7 +274,7 @@ def print_usage():
 
 
 if __name__ == "__main__":
-    syslog.openlog(ident="fruit-monitor")
+    syslog.openlog(ident="fruit_monitor")
     if len(sys.argv) >= 2:
         if sys.argv[1] == "-":
             json.dump(generate(), sys.stdout)
