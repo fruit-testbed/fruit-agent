@@ -7,7 +7,7 @@ depend() {
 }
 
 start() {
-	/usr/sbin/fruit-config
+	/usr/sbin/fruit_config
 	return $?
 }
 

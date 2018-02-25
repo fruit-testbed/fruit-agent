@@ -350,11 +350,11 @@ setup_sshd() {
 setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
 	*/1   *  *  *  *  fruit_monitor
-	*/15  *  *  *  *  timeout -t 600 fruit-config cron
+	*/15  *  *  *  *  timeout -t 600 fruit_config cron
 	0     *  *  *  *  fruit_update cron
 	59    4  *  *  *  [ -f /run/fruit_update.reboot ] && reboot || true
 	EOL
-	logger -st fruit "Added cron entries of fruit_monitor and fruit-config"
+	logger -st fruit "Added cron entries of fruit_monitor and fruit_config"
 }
 
 fix_syslogd_config() {
