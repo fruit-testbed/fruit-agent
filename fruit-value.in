@@ -9,14 +9,20 @@ import re
 __LOCAL_CONFIG__ = "/run/fruit.json@local"
 __SERVER_CONFIG__ = "/run/fruit.json@server"
 
+__INT__ = re.compile("^[0-9]+$")
 
 def find_path(path, data):
     if len(path) == 0:
         return data
     if path[0] == "":
         return find_path(path[1:], data)
-    if path[0] in data:
-        return find_path(path[1:], data[path[0]])
+    if isinstance(data, dict):
+        if path[0] in data:
+            return find_path(path[1:], data[path[0]])
+    elif isinstance(data, list) and re.match(__INT__, path[0]) is not None:
+        idx = int(path[0])
+        if idx < len(data):
+            return find_path(path[1:], data[idx])
     return None
 
 
