@@ -21,7 +21,7 @@ download_resource() {
 
 	local name=$(cat /etc/hostname)
 	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
-	local api_key=$(fruit-value '\["api_key"\]')
+	local api_key=$(fruit_value '\["api_key"\]')
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
 		&& return 1
@@ -63,7 +63,7 @@ status() {
 }
 
 setup_openvpn() {
-	local enabled=$(fruit-value '\["vpn"\]')
+	local enabled=$(fruit_value '\["vpn"\]')
 	local config="/run/openvpn.tar.gz"
 	if [ "$enabled" != "true" ]; then
 		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop || true
@@ -92,7 +92,7 @@ setup_openvpn() {
 }
 
 setup_user_root() {
-	hash=$(fruit-value '\["root-password"\]')
+	hash=$(fruit_value '\["root-password"\]')
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
 			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
@@ -113,7 +113,7 @@ setup_hostname() {
 }
 
 setup_timezone() {
-	zone=$(fruit-value '\["timezone"\]')
+	zone=$(fruit_value '\["timezone"\]')
 	if [ "$zone" = "" ]; then
 		zone="GB"
 	fi
@@ -124,7 +124,7 @@ setup_timezone() {
 }
 
 setup_keyboard() {
-	local keyboard=$(fruit-value '\["keyboard"\]')
+	local keyboard=$(fruit_value '\["keyboard"\]')
 	if [ "$keyboard" = "" ]; then
 		keyboard="gb"
 	fi
@@ -136,7 +136,7 @@ setup_keyboard() {
 }
 
 setup_ntp_boot() {
-	for s in "pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]')"; do
+	for s in "pool.ntp.org time.apple.com $(fruit_value '\["ntp"\]')"; do
 		echo "server ${s}" >> /etc/ntp.conf
 	done
 	echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd
@@ -144,7 +144,7 @@ setup_ntp_boot() {
 
 setup_ntp_default() {
 	local restart=0
-	for s in pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]'); do
+	for s in pool.ntp.org time.apple.com $(fruit_value '\["ntp"\]'); do
 		grep "^server ${s}$" /etc/ntp.conf 1>/dev/null 2>/dev/null
 		[ $? -ne 0 ] && echo "server ${s}" >> /etc/ntp.conf && restart=1
 	done
@@ -153,14 +153,14 @@ setup_ntp_default() {
 }
 
 setup_wpa_supplicant() {
-	ssid=$(fruit-value '\["wpa","ssid"\]')
+	ssid=$(fruit_value '\["wpa","ssid"\]')
 	[ "$ssid" = "" ] && return 1
 
 	[ "$wpa" = yes ] && return 0
 	wpa=yes
 
-	username=$(fruit-value '\["wpa","username"\]')
-	password=$(fruit-value '\["wpa","password"\]')
+	username=$(fruit_value '\["wpa","username"\]')
+	password=$(fruit_value '\["wpa","password"\]')
 
 	if [ "$username" != "" ]; then
 		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOL
@@ -188,7 +188,7 @@ EOL
 setup_network_interface() {
 	iface=$1
 	wpa_supp=$2
-	addr=$(fruit-value "\[\"network\",\"$iface\"\]")
+	addr=$(fruit_value "\[\"network\",\"$iface\"\]")
 	if [ "$addr" = "" ]; then
 		addr="dhcp"
 	fi
@@ -301,7 +301,7 @@ setup_data_volume() {
 }
 
 setup_docker() {
-	local enabled=$(fruit-value '\["docker"\]')
+	local enabled=$(fruit_value '\["docker"\]')
 	local datadir=/media/data
 	local ret=0
 
@@ -407,8 +407,8 @@ setup_builtin_led() {
 }
 
 setup_leds() {
-	setup_builtin_led "/sys/class/leds/led0" $(fruit-value '\["leds","green"\]')
-	setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
+	setup_builtin_led "/sys/class/leds/led0" $(fruit_value '\["leds","green"\]')
+	setup_builtin_led "/sys/class/leds/led1" $(fruit_value '\["leds","red"\]')
 }
 
 ##### main #####

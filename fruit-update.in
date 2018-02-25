@@ -73,7 +73,7 @@ umount_non_active
 	exit 1
 
 if [ -f $flag_file ]; then
-	enabled_recovery=$(fruit-value '\["root_partition_recovery"\]')
+	enabled_recovery=$(fruit_value '\["root_partition_recovery"\]')
 	if [ "$enabled_recovery" != "false" ]; then
 		logger -st fruit "WARNING: $non_active is dirty"
 		# do recovery since non-active is dirty

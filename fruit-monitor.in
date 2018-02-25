@@ -82,7 +82,7 @@ def _os_service():
 
 def _os_mode():
     try:
-        mode = sp.check_output(["fruit-value", '\["mode"\]']).strip()
+        mode = sp.check_output(["fruit_value", '\["mode"\]']).strip()
         if mode in ["master", "slave"]:
             return mode
     except sp.CalledProcessError as cpe:
@@ -204,7 +204,7 @@ def _network():
 
 def _api_key():
     try:
-        return sp.check_output(["fruit-value", '\["api_key"\]']).strip()
+        return sp.check_output(["fruit_value", '\["api_key"\]']).strip()
     except:
         return ""
 
@@ -272,7 +272,7 @@ def print_usage():
     print " Send data to server: %s" % sys.argv[0]
     print "Print data to stdout: %s -" % sys.argv[0]
 
-    
+
 if __name__ == "__main__":
     syslog.openlog(ident="fruit-monitor")
     if len(sys.argv) >= 2:
