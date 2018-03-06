@@ -93,6 +93,9 @@ setup_openvpn() {
 
 setup_user_root() {
 	hash=$(fruit-value '\["root-password"\]')
+  if [ "$hash" = "" ]; then
+    hash=$(fruit-value '\["user","root","password"\]')
+  fi
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
 			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
