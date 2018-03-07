@@ -142,7 +142,7 @@ def _docker_images():
     docker_sock = "/var/run/docker.sock"
     if not path.exists(docker_sock):
         return None
-    cmd = ["curl", "-s", "--unix-socket", docker_sock,
+    cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/images/json?all=true" % __DOCKER_API_VERSION__]
     return json.loads(sp.check_output(cmd))
 
@@ -151,7 +151,7 @@ def _docker_containers():
     docker_sock = "/var/run/docker.sock"
     if not path.exists(docker_sock):
         return None
-    cmd = ["curl", "-s", "--unix-socket", docker_sock,
+    cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/containers/json?all=true" % __DOCKER_API_VERSION__]
     return json.loads(sp.check_output(cmd))
 

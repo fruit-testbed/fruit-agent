@@ -27,7 +27,7 @@ download_resource() {
 		&& return 1
 
 	local tmpfile=$(mktemp)
-	curl --connect-timeout 10 -sL -o "$tmpfile" -H "X-API-Key: $api_key" ${url}
+	curl --connect-timeout 10 -fsL -o "$tmpfile" -H "X-API-Key: $api_key" ${url}
 	[ $? -ne 0 ] \
 		&& logger -st fruit "ERROR: Failed to download $url" \
 		&& return 2
