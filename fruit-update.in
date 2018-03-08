@@ -78,7 +78,7 @@ if [ -f $flag_file ]; then
 		logger -st fruit "WARNING: $non_active is dirty"
 		# do recovery since non-active is dirty
 		recover_non_active
-		[ $? -ne 0 ] && exit 2
+		exit 2
 	else
 		logger -st fruit "ERROR: $non_active is dirty but recovery is disabled (root_partition_recovery=false)"
 		exit 3
