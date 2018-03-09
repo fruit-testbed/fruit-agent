@@ -51,6 +51,7 @@ apply_update() {
 	local update=/media/root-update
 	local diff=$(mktemp)
 	local ret=0
+	local merge=
 
 	mkdir -p $tmp $update \
 		&& mount -t tmpfs root-tmpfs $tmp \
@@ -66,41 +67,19 @@ apply_update() {
 			2>/tmp/.fruit-update.apk-upgrade.stderr \
 
 	ret=$((ret + $?))
+
+	umount -f $update
+	ret=$((ret + $?))
+
 	if [ $ret -eq 0 ]; then
-		diff -rq --no-dereference $update $non_active_dir > $diff
-		# copy files that differs
-		grep " differ$" $diff | while read line; do
-			src=$(echo "$line" | cut -d' ' -f2)
-			dst=$(echo "$line" | cut -d' ' -f4)
-			if [ "$src" != "$update/lib/apk/db/scripts.tar" ]; then
-				logger -st fruit-update "Copying $src to $dst"
-				cp -a "$src" "$dst"
-			fi
+		merge=$(overlayfs-tools merge -l $non_active_dir -u $tmp/root | cut -d' ' -f3)
+		if [ -f "$merge" ]; then
+			sh $merge 1>/dev/null 2>/dev/null
 			ret=$((ret + $?))
-		done
-		# delete files that only exists on the older root partition
-		grep "Only on ${root}:" $diff | while read line; do
-			file=$(echo "$line" | cut -d' ' -f4)
-			logger -st fruit-update "Deleting $file"
-			rm -f "$file"
-			ret=$((ret + $?))
-		done
-		# compare /lib/apk/db/scripts.tar
-		local newscripts=$(mktemp)
-		local oldscripts=$(mktemp)
-		tar -tf $update/lib/apk/db/scripts.tar > $newscripts
-		tar -tf $non_active_dir/lib/apk/db/scripts.tar > $oldscripts
-		diff -q $newscripts $oldscripts >/dev/null
-		if [ $? -ne 0 ]; then
-			cp -a $update/lib/apk/db/scripts.tar \
-				$non_active_dir/lib/apk/db/scripts.tar
+			rm -f $merge
 		fi
-		rm -f $newscripts $oldscripts
-	else
-		logger -st fruit-update "'apk upgrade' failed"
 	fi
 	sync
-	umount -f $update
 	umount -f $tmp
 	rm -f $diff
 	return $ret
