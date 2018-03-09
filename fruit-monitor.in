@@ -110,8 +110,7 @@ def _pkg_version(name):
 
 def _os_uptime():
     try:
-        with open("/proc/uptime") as fin:
-            return fin.read().split(" ")[0]
+        return sp.check_output(["uptime"]).strip()
     except:
         return None
 
