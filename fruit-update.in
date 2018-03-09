@@ -99,6 +99,7 @@ apply_update() {
 	else
 		logger -st fruit-update "'apk upgrade' failed"
 	fi
+	sync
 	umount -f $update
 	umount -f $tmp
 	rm -f $diff
