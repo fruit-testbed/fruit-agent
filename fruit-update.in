@@ -47,47 +47,62 @@ umount_non_active() {
 }
 
 apply_update() {
-  local tmp=/media/root-tmp
-  local update=/media/root-update
-  local diff=$(mktemp)
-  local ret=0
+	local tmp=/media/root-tmp
+	local update=/media/root-update
+	local diff=$(mktemp)
+	local ret=0
 
-  mkdir -p $tmp $update \
-	  && mount -t tmpfs root-tmpfs $tmp \
-	  && mkdir -p $tmp/root $tmp/work \
-	  && mount -t overlay \
-        -o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
-		    overlayfs $update \
-    && apk -q --root $update update \
-        1>/tmp/.fruit-update.apk-update.stdout \
-        2>/tmp/.fruit-update.apk-update.stderr \
-    && apk --root $update --purge --wait 1200 upgrade \
-        1>/tmp/.fruit-update.apk-upgrade.stdout \
-        2>/tmp/.fruit-update.apk-upgrade.stderr \
+	mkdir -p $tmp $update \
+		&& mount -t tmpfs root-tmpfs $tmp \
+		&& mkdir -p $tmp/root $tmp/work \
+		&& mount -t overlay \
+			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
+			overlayfs $update \
+		&& apk -q --root $update update \
+			1>/tmp/.fruit-update.apk-update.stdout \
+			2>/tmp/.fruit-update.apk-update.stderr \
+		&& apk --root $update --purge --wait 1200 upgrade \
+			1>/tmp/.fruit-update.apk-upgrade.stdout \
+			2>/tmp/.fruit-update.apk-upgrade.stderr \
 
-  ret=$((ret + $?))
-  if [ $ret -eq 0 ]; then
-    diff -rq --no-dereference $update $non_active_dir > $diff
-    grep " differ$" $diff | while read line; do
-      src=$(echo "$line" | cut -d' ' -f2)
-		  dst=$(echo "$line" | cut -d' ' -f4)
-		  echo "Copying $src to $dst"
-		  cp -a "$src" "$dst"
-		  ret=$((ret + $?))
-	  done
-	  grep "Only on ${root}:" $diff | while read line; do
-		  file=$(echo "$line" | cut -d' ' -f4)
-		  echo "Deleting $file"
-		  rm -f "$file"
-		  ret=$((ret + $?))
-	  done
-  else
-	  echo "'apk upgrade' failed"
-  fi
-  umount -f $update
-  umount -f $tmp
-  rm -f $diff
-  return $ret
+	ret=$((ret + $?))
+	if [ $ret -eq 0 ]; then
+		diff -rq --no-dereference $update $non_active_dir > $diff
+		# copy files that differs
+		grep " differ$" $diff | while read line; do
+			src=$(echo "$line" | cut -d' ' -f2)
+			dst=$(echo "$line" | cut -d' ' -f4)
+			if [ "$src" != "$update/lib/apk/db/scripts.tar" ]; then
+				logger -st fruit-update "Copying $src to $dst"
+				cp -a "$src" "$dst"
+			fi
+			ret=$((ret + $?))
+		done
+		# delete files that only exists on the older root partition
+		grep "Only on ${root}:" $diff | while read line; do
+			file=$(echo "$line" | cut -d' ' -f4)
+			logger -st fruit-update "Deleting $file"
+			rm -f "$file"
+			ret=$((ret + $?))
+		done
+		# compare /lib/apk/db/scripts.tar
+		local newscripts=$(mktemp)
+		local oldscripts=$(mktemp)
+		tar -tf $update/lib/apk/db/scripts.tar > $newscripts
+		tar -tf $non_active_dir/lib/apk/db/scripts.tar > $oldscripts
+		diff -q $newscripts $oldscripts >/dev/null
+		if [ $? -ne 0 ]; then
+			cp -a $update/lib/apk/db/scripts.tar \
+				$non_active_dir/lib/apk/db/scripts.tar
+		fi
+		rm -f $newscripts $oldscripts
+	else
+		logger -st fruit-update "'apk upgrade' failed"
+	fi
+	umount -f $update
+	umount -f $tmp
+	rm -f $diff
+	return $ret
 }
 
 recover_non_active() {
