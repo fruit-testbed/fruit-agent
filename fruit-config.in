@@ -417,26 +417,30 @@ setup_leds() {
 }
 
 setup_kernel_modules() {
-	if [ ! -e /run/fruit.setup_kernel_modules ]; then
-		modules=$(fruit-value '\["modules"\]')
+	modules=$(fruit-value '\["modules"\]')
+	hash=$(echo -n "$modules" | md5sum | awk '{print $1}')
+	if [ ! -e /run/fruit.modules.$hash ]; then
 		for mod in $modules; do
 			modprobe $mod
 			[ $? -ne 0 ] \
 				&& logger -st fruit "ERROR: Failed loading kernel module $mod"
 		done
-		touch /run/fruit.setup_kernel_modules
+		rm -f /run/fruit.modules.*
+		touch /run/fruit.modules.$hash
 	fi
 }
 
 setup_dtparam() {
-	if [ ! -e /run/fruit.setup_dtparam ]; then
-		params=$(fruit-value '\["dtparam"\]')
+	params=$(fruit-value '\["dtparam"\]')
+	hash=$(echo -n "$params" | md5sum | awk '{print $1}')
+	if [ ! -e /run/fruit.dtparam.$hash ]; then
 		for param in $params; do
 			/opt/vc/bin/dtparam $param
 			[ $? -ne 0 ] \
 				&& logger -st fruit "ERROR: Failed to invoke 'dtparam $param'"
 		done
-		touch /run/fruit.setup_dtparam
+		rm -f /run/fruit.dtparam.*
+		touch /run/fruit.dtparam.$hash
 	fi
 }
 
