@@ -254,7 +254,7 @@ def send():
     try:
         with os.fdopen(fd, 'w') as fout:
             json.dump(generate(), fout)
-        url = "https://%s/api/monitor/%s" % (host, piid())
+        url = "https://%s/api/monitor/pi%s" % (host, piid())
         header1 = "Content-Type: application/json"
         header2 = "X-API-Key: %s" % _api_key()
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
