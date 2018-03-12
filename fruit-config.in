@@ -416,6 +416,30 @@ setup_leds() {
 	setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
 }
 
+setup_kernel_modules() {
+	if [ ! -e /run/fruit.setup_kernel_modules ]; then
+		modules=$(fruit-value '\["modules"\]')
+		for mod in $modules; do
+			modprobe $mod
+			[ $? -ne 0 ] \
+				&& logger -st fruit "ERROR: Failed loading kernel module $mod"
+		done
+		touch /run/fruit.setup_kernel_modules
+	fi
+}
+
+setup_dtparam() {
+	if [ ! -e /run/fruit.setup_dtparam ]; then
+		params=$(fruit-value '\["dtparam"\]')
+		for param in $params; do
+			/opt/vc/bin/dtparam $param
+			[ $? -ne 0 ] \
+				&& logger -st fruit "ERROR: Failed to invoke 'dtparam $param'"
+		done
+		touch /run/fruit.setup_dtparam
+	fi
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -445,6 +469,8 @@ case "$(rc-status -r)" in
 	default)
 		copy_config_local_to_run
 		download_config_server_to_run
+		setup_kernel_modules
+		setup_dtparam
 		setup_timezone
 		setup_ntp_default
 		fix_syslogd_timestamp
