@@ -91,8 +91,10 @@ def _os_mode():
 
 
 def _os_hostname():
-    with open("/etc/hostname", "r") as fin:
-        return fin.read().strip()
+    try:
+        return sp.check_output(["hostname"]).strip()
+    except:
+        return None
 
 
 def _os_master_address():
@@ -156,11 +158,7 @@ def _docker_containers():
 
 
 def _board():
-    cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
-    line = sp.check_output(["grep", "Serial"], stdin=cat.stdout)
-    cat.wait()
-    _, _, serial = re.split("\s+", line.strip())
-    serial = serial.lstrip("0")
+    serial = sp.check_output(["piserial"]).strip()
 
     cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
     line = sp.check_output(["grep", "Revision"], stdin=cat.stdout)
@@ -229,8 +227,16 @@ def _fruit_json():
     return {"local": local, "server": server}
 
 
+def piid():
+    try:
+        return sp.check_output(["piserial"]).strip()
+    except:
+        return None
+
+
 def generate():
     return {
+        "id": piid(),
         "os": _os(),
         "volumes": _volumes(),
         "docker": _docker(),
@@ -248,7 +254,7 @@ def send():
     try:
         with os.fdopen(fd, 'w') as fout:
             json.dump(generate(), fout)
-        url = "https://%s/api/monitor/%s" % (host, _os_hostname())
+        url = "https://%s/api/monitor/%s" % (host, piid())
         header1 = "Content-Type: application/json"
         header2 = "X-API-Key: %s" % _api_key()
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,

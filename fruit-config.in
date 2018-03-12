@@ -19,21 +19,24 @@ download_resource() {
 	# $1: resource name to be download
 	# $2: target output file
 
-	local name=$(cat /etc/hostname)
+	local name="pi$(piserial)"
 	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
 	local api_key=$(fruit-value '\["api_key"\]')
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
 		&& return 1
 
+	local ret=0
 	local tmpfile=$(mktemp)
 	curl --connect-timeout 10 -fsL -o "$tmpfile" -H "X-API-Key: $api_key" ${url}
-	[ $? -ne 0 ] \
-		&& logger -st fruit "ERROR: Failed to download $url" \
-		&& return 2
-	mkdir -p "$(dirname "$2")" \
-		&& cp -f ${tmpfile} "$2"
-	local ret=$?
+	if [ $? -ne 0 ]; then
+		logger -st fruit "ERROR: Failed to download $url"
+		ret=2
+	else
+		mkdir -p "$(dirname "$2")" \
+			&& cp -f ${tmpfile} "$2"
+		ret=$?
+	fi
 	rm -f ${tmpfile}
 	return $ret
 }
@@ -103,12 +106,11 @@ setup_user_root() {
 	fi
 }
 
-serial() {
-	cat /proc/cpuinfo | grep Serial | awk '{print $3}' | sed 's/^0*//'
-}
-
 setup_hostname() {
-	hostname="pi$(serial)"
+	hostname=$(fruit-value '\["name"\]')
+	if [ "$hostname" = "" ]; then
+		hostname="pi$(piserial)"
+	fi
 	echo "$hostname" > /etc/hostname
 	echo "127.0.1.1   $hostname" >> /etc/hosts
 	hostname $hostname
