@@ -412,8 +412,10 @@ setup_builtin_led() {
 }
 
 setup_leds() {
-	setup_builtin_led "/sys/class/leds/led0" $(fruit-value '\["leds","green"\]')
-	setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
+	[ -e /sys/class/leds/led0 ] \
+		&& setup_builtin_led "/sys/class/leds/led0" $(fruit-value '\["leds","green"\]')
+	[ -e /sys/class/leds/led1 ] \
+		&& setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
 }
 
 setup_kernel_modules() {
