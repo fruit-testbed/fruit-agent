@@ -123,9 +123,11 @@ mark_dirty $non_active && \
 	mark_clean $non_active
 ret=$?
 if [ $ret -eq 0 ]; then
-	total=$(grep " Upgrading " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
-	[ $total -gt 0 ] && touch /run/fruit-update.reboot
-	logger -st fruit "Updated $non_active ($total packages upgraded)"
+	totalupgraded=$(grep ") Upgrading " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
+	totalinstalled=$(grep ") Installing " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
+	[ $totalupgraded -gt 0 ] && touch /run/fruit-update.reboot
+	[ $totalinstalled -gt 0 ] && touch /run/fruit-update.reboot
+	logger -st fruit "Updated $non_active ($totalupgraded packages upgraded, $totalinstalled packages installed)"
 else
 	umount_non_active
 	logger -st fruit "ERROR: Failed updating $non_active"
