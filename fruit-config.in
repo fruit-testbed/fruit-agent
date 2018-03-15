@@ -323,7 +323,7 @@ setup_docker() {
 		mkdir -p /etc/docker
 		cat > /etc/docker/daemon.json <<-EOF
 		{
-			"storage-driver": "overlay2",
+			"storage-driver": "btrfs",
 			"ipv6": true,
 			"fixed-cidr-v6": "fc00:1:2::/64"
 		}
