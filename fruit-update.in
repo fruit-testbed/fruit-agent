@@ -65,8 +65,7 @@ apply_update() {
 	local ret=0
 	local merge=
 
-	mkdir -p $tmp $update \
-		&& mkdir -p $tmp/root $tmp/work \
+	mkdir -p $tmp/root $tmp/work $update \
 		&& mount -t overlay \
 			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
 			overlayfs $update \
