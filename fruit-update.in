@@ -11,6 +11,9 @@ non_active_dir=/media/root-bak
 flag_dir=/media/mmcblk0p1
 flag_file="$flag_dir/$(echo "$non_active" | sed 's/\//./g').dirty"
 
+apk_log_file=/var/log/fruit-update-apk.log
+echo "started $(date)" >> $apk_log_file
+
 logger -st fruit "Updating $non_active"
 
 mark_dirty() {
@@ -50,12 +53,9 @@ pin_docker() {
 	# pin docker to only use a package available in fruit repository, not alpine
 	[ $(apk --root $non_active_dir version docker | grep '@fruit' | wc -l) -ne 0 ] && return 0
 	[ $(grep '^@fruit ' /etc/apk/repositories | wc -l) -eq 0 ] && return 0
-	apk --root $non_active_dir del docker \
-			1>>/tmp/.fruit-update.apk-upgrade.stdout \
-			2>>/tmp/.fruit-update.apk-upgrade.stderr \
+	apk --root $non_active_dir del docker 1>>$apk_log_file 2>>$apk_log_file \
 		&& apk --root $non_active_dir add docker@fruit \
-			1>>/tmp/.fruit-update.apk-upgrade.stdout \
-			2>>/tmp/.fruit-update.apk-upgrade.stderr \
+			1>>$apk_log_file 2>>$apk_log_file \
 
 	return $?
 }
@@ -70,12 +70,9 @@ apply_update() {
 		&& mount -t overlay \
 			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
 			overlayfs $update \
-		&& apk -q --root $update update \
-			1>/tmp/.fruit-update.apk-update.stdout \
-			2>/tmp/.fruit-update.apk-update.stderr \
+		&& apk -q --root $update update 1>>$apk_log_file 2>>$apk_log_file \
 		&& apk --root $update --purge --wait 1200 upgrade \
-			1>/tmp/.fruit-update.apk-upgrade.stdout \
-			2>/tmp/.fruit-update.apk-upgrade.stderr \
+			1>>$apk_log_file 2>>$apk_log_file \
 		&& pin_docker \
 
 	ret=$((ret + $?))
@@ -93,6 +90,12 @@ apply_update() {
 	fi
 	sync
 	rm -rf $tmp
+
+	# truncate $apk_log_file to maximum 500 lines
+	local n=$(wc -l $apk_log_file | cut -d' ' -f1)
+	local m=$(($n - 500))
+	[ $m -gt 0 ] && sed -i "1,$m d" $apk_log_file
+
 	return $ret
 }
 
