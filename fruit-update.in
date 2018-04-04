@@ -49,17 +49,6 @@ umount_non_active() {
 	return $?
 }
 
-pin_docker() {
-	# pin docker to only use a package available in fruit repository, not alpine
-	[ $(apk --root $non_active_dir version docker | grep '@fruit' | wc -l) -ne 0 ] && return 0
-	[ $(grep '^@fruit ' /etc/apk/repositories | wc -l) -eq 0 ] && return 0
-	apk --root $non_active_dir del docker 1>>$apk_log_file 2>>$apk_log_file \
-		&& apk --root $non_active_dir add docker@fruit \
-			1>>$apk_log_file 2>>$apk_log_file \
-
-	return $?
-}
-
 apply_update() {
 	local tmp=/media/data/.root-tmp
 	local update=/media/root-update
@@ -73,7 +62,6 @@ apply_update() {
 		&& apk -q --root $update update 1>>$apk_log_file 2>>$apk_log_file \
 		&& apk --root $update --purge --wait 1200 upgrade \
 			1>>$apk_log_file 2>>$apk_log_file \
-		&& pin_docker \
 
 	ret=$((ret + $?))
 	sync
