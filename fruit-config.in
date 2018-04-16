@@ -446,6 +446,20 @@ setup_dtparam() {
 	fi
 }
 
+do_bootafter() {
+	local now=$(date +%s)
+	local up=$(cat /proc/uptime | cut -d' ' -f1 | cut -d'.' -f1)
+	local boot=$(($now - $up))
+	local bootafter=$(fruit-value boot-after)
+	if [ "$bootafter" != "" ]; then
+		if [ $boot -lt $bootafter ]; then
+			logger -st fruit "rebooting since boot=$boot < boot-after=$bootafter"
+			reboot
+		fi
+	fi
+	return 0
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -475,6 +489,7 @@ case "$(rc-status -r)" in
 	default)
 		copy_config_local_to_run
 		download_config_server_to_run
+		do_bootafter
 		setup_kernel_modules
 		setup_dtparam
 		setup_timezone
