@@ -12,7 +12,8 @@ flag_dir=/media/mmcblk0p1
 flag_file="$flag_dir/$(echo "$non_active" | sed 's/\//./g').dirty"
 
 apk_log_file=/var/log/fruit-update-apk.log
-echo "started $(date)" >> $apk_log_file
+[ -f $apk_log_file ] && mv -f $apk_log_file $apk_log_file.old
+echo "started $(date)" > $apk_log_file
 
 logger -st fruit "Updating $non_active"
 
@@ -125,8 +126,8 @@ mark_dirty $non_active && \
 	mark_clean $non_active
 ret=$?
 if [ $ret -eq 0 ]; then
-	totalupgraded=$(grep ") Upgrading " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
-	totalinstalled=$(grep ") Installing " /tmp/.fruit-update.apk-upgrade.stdout 2>/dev/null | wc -l)
+	totalupgraded=$(grep ") Upgrading " $apk_log_file 2>/dev/null | wc -l)
+	totalinstalled=$(grep ") Installing " $apk_log_file 2>/dev/null | wc -l)
 	[ $totalupgraded -gt 0 ] && touch /run/fruit-update.reboot
 	[ $totalinstalled -gt 0 ] && touch /run/fruit-update.reboot
 	logger -st fruit "Updated $non_active ($totalupgraded packages upgraded, $totalinstalled packages installed)"
