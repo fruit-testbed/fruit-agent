@@ -244,7 +244,7 @@ def piid():
 def _p2p_update():
     return {
         "config": _p2p_update_config(),
-        "overlay-peers": _p2p_update_overlay_peers(),
+        "overlay": _p2p_update_overlay(),
         "updates": _p2p_update_updates(),
     }
 
@@ -257,12 +257,17 @@ def _p2p_update_config():
     return json.loads(sp.check_output(cmd))
 
 
-def _p2p_update_overlay_peers():
+def _p2p_update_overlay():
     if not path.exists(__P2P_UPDATE_SOCK__):
         return None
-    url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
+    url = "http://%s/overlay" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    return json.loads(sp.check_output(cmd))
+    stat = json.loads(sp.check_output(cmd))
+    if stat is not None:
+        url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
+        cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
+        stat['peers'] = json.loads(sp.check_output(cmd))
+        return stat
 
 
 def _p2p_update_updates():
