@@ -16,6 +16,9 @@ import traceback
 __DOCKER_SOCK__ = "/var/run/docker.sock"
 __DOCKER_API_VERSION__ = "v1.35"
 
+__P2P_UPDATE_SOCK__ = "/var/run/p2pupdate.sock"
+__P2P_UPDATE_VERSION__ = "v1"
+
 
 def _cpus():
     data = {}
@@ -238,6 +241,46 @@ def piid():
     return piid
 
 
+def _p2p_update():
+    return {
+        "config": _p2p_update_config(),
+        "overlay-peers": _p2p_update_overlay_peers(),
+        "updates": _p2p_update_updates(),
+    }
+
+
+def _p2p_update_config():
+    if not path.exists(__P2P_UPDATE_SOCK__):
+        return None
+    url = "http://%s/config" % __P2P_UPDATE_VERSION__
+    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
+    return json.loads(sp.check_output(cmd))
+
+
+def _p2p_update_overlay_peers():
+    if not path.exists(__P2P_UPDATE_SOCK__):
+        return None
+    url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
+    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
+    return json.loads(sp.check_output(cmd))
+
+
+def _p2p_update_updates():
+    if not path.exists(__P2P_UPDATE_SOCK__):
+        return None
+    url = "http://%s/update" % __P2P_UPDATE_VERSION__
+    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
+    uuids = json.loads(sp.check_output(cmd))
+    if uuids is None:
+        return None
+    updates = {}
+    for uuid in uuids:
+        url2 = "%s/%s" % (url, uuid)
+        cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url2]
+        updates[uuid] = json.loads(sp.check_output(cmd))
+    return updates
+
+
 def generate():
     return {
         "id": piid(),
@@ -249,6 +292,7 @@ def generate():
         "cpus": _cpus(),
         "memory": _memory(),
         "fruit.json": _fruit_json(),
+        "p2p-update": _p2p_update(),
     }
 
 
