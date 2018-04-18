@@ -126,6 +126,7 @@ def _os():
         "built_timestamp": sp.check_output(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
         "uptime": _os_uptime(),
         "fruit-agent": _pkg_version("fruit-agent"),
+        "p2p-update": _pkg_version("p2p-update"),
         "mode": _os_mode(),
         "timezone": sp.check_output(["date", "+%Z %z"]).strip(),
         "local_datetime": sp.check_output(["date", "-R"]).strip(),
