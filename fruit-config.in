@@ -197,6 +197,10 @@ setup_network_interface() {
 	if [ "$addr" = "" ]; then
 		addr="dhcp"
 	fi
+	wpa_pass=$(fruit-value '\["wpa","password"\]')
+	if [ "$wpa_pass" = "" ]; then
+		wpa_supp="no"
+	fi
 
 	if [ "$addr" = "dhcp" ]; then
 		cat >> /etc/network/interfaces <<-EOL
