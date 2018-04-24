@@ -466,15 +466,17 @@ do_bootafter() {
 
 setup_p2p_update() {
 	local sumfile=/var/run/p2p-update.config.md5
-	local config=$(fruit-value /p2p-update)	
+	local config=$(fruit-value /p2p-update)
+	local configfile=/etc/p2p-update/config.json
 
 	if [ "$config" != "" ]; then
-		echo "$config" > /etc/p2p-update/config.json
+		echo "$config" > "$configfile"
 	fi
-	md5sum -c "$sumfile"
+	md5sum -c "$sumfile" 1>/dev/null 2>/dev/null
 	if [ $? -ne 0 ]; then
 		rc-service p2p-update restart
 	fi
+	md5sum "$configfile" > "$sumfile"
 }
 
 ##### main #####
