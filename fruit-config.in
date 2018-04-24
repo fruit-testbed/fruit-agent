@@ -464,6 +464,19 @@ do_bootafter() {
 	return 0
 }
 
+setup_p2p_update() {
+	local sumfile=/var/run/p2p-update.config.md5
+	local config=$(fruit-value /p2p-update)	
+
+	if [ "$config" != "" ]; then
+		echo "$config" > /etc/p2p-update/config.json
+	fi
+	md5sum -c "$sumfile"
+	if [ $? -ne 0 ]; then
+		rc-service p2p-update restart
+	fi
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -494,6 +507,7 @@ case "$(rc-status -r)" in
 		copy_config_local_to_run
 		download_config_server_to_run
 		do_bootafter
+		setup_p2p_update
 		setup_kernel_modules
 		setup_dtparam
 		setup_timezone
