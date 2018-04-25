@@ -255,7 +255,10 @@ def _p2p_update_config():
         return None
     url = "http://%s/config" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    return json.loads(sp.check_output(cmd))
+    try:
+        return json.loads(sp.check_output(cmd))
+    except sp.CalledProcessError:
+        return None
 
 
 def _p2p_update_overlay():
@@ -263,12 +266,18 @@ def _p2p_update_overlay():
         return None
     url = "http://%s/overlay" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    stat = json.loads(sp.check_output(cmd))
-    if stat is not None:
+    try:
+        stat = json.loads(sp.check_output(cmd))
+    except sp.CalledProcessError:
+        stat = None
+    if isinstance(stat, dict):
         url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
         cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-        stat['peers'] = json.loads(sp.check_output(cmd))
-        return stat
+        try:
+            stat['peers'] = json.loads(sp.check_output(cmd))
+        except sp.CalledProcessError:
+            pass
+    return stat
 
 
 def _p2p_update_updates():
@@ -276,15 +285,20 @@ def _p2p_update_updates():
         return None
     url = "http://%s/update" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    uuids = json.loads(sp.check_output(cmd))
-    if uuids is None:
+    try:
+        uuids = json.loads(sp.check_output(cmd))
+    except sp.CalledProcessError:
         return None
-    updates = {}
-    for uuid in uuids:
-        url2 = "%s/%s" % (url, uuid)
-        cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url2]
-        updates[uuid] = json.loads(sp.check_output(cmd))
-    return updates
+    if isinstance(uuids, list):
+        updates = {}
+        for uuid in uuids:
+            url2 = "%s/%s" % (url, uuid)
+            cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url2]
+            try:
+                updates[uuid] = json.loads(sp.check_output(cmd))
+            except sp.CalledProcessError:
+                pass
+        return updates
 
 
 def generate():
