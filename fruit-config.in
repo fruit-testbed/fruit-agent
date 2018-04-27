@@ -453,11 +453,11 @@ setup_dtparam() {
 do_bootafter() {
 	local now=$(date +%s)
 	local up=$(cat /proc/uptime | cut -d' ' -f1 | cut -d'.' -f1)
-	local boot=$(($now - $up))
+	local boottime=$(($now - $up))
 	local bootafter=$(fruit-value boot-after)
-	if [ "$bootafter" != "" ]; then
-		if [ $boot -lt $bootafter ]; then
-			logger -st fruit "rebooting since boot=$boot < boot-after=$bootafter"
+	if [ "$bootafter" != "" ] && [ "$bootafter" -lt "$now" ]; then
+		if [ $boottime -lt $bootafter ]; then
+			logger -st fruit "rebooting since boot-time=$boottime < boot-after=$bootafter"
 			reboot
 		fi
 	fi
