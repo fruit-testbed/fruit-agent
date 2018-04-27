@@ -11,6 +11,7 @@ import sys
 import argparse
 import syslog
 import traceback
+import httplib
 
 
 __DOCKER_SOCK__ = "/var/run/docker.sock"
@@ -301,6 +302,34 @@ def _p2p_update_updates():
         return updates
 
 
+def _external_ip():
+    conn = httplib.HTTPSConnection("api.ipify.org")
+    conn.request("GET", "/")
+    res = conn.getresponse()
+    ip = None
+    if res.status == 200:
+        ip = res.read()
+    conn.close()
+    return ip
+
+
+def _location():
+    ext_ip = _external_ip()
+    if ext_ip is None:
+        return None
+    conn = httplib.HTTPConnection("api.ipstack.com")
+    conn.request("GET", "/%s?access_key=%s" % (ext_ip, "f2426e25c518a8fbd2ae2272d69edb8c"))
+    res = conn.getresponse()
+    loc = None
+    if res.status == 200:
+        try:
+            loc = json.loads(res.read())
+        except:
+            pass
+    conn.close()
+    return loc
+
+
 def generate():
     return {
         "id": piid(),
@@ -313,6 +342,7 @@ def generate():
         "memory": _memory(),
         "fruit.json": _fruit_json(),
         "p2p-update": _p2p_update(),
+        "location": _location(),
     }
 
 
