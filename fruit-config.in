@@ -477,6 +477,11 @@ setup_p2p_update() {
 		rc-service p2p-update restart
 	fi
 	md5sum "$configfile" > "$sumfile"
+
+	pidof p2p-update 1>/dev/null 2>/dev/null
+	if [ $? -ne 0 ]; then
+		rc-service p2p-update restart
+	fi
 }
 
 ##### main #####
