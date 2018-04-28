@@ -20,6 +20,8 @@ __DOCKER_API_VERSION__ = "v1.35"
 __P2P_UPDATE_SOCK__ = "/var/run/p2pupdate.sock"
 __P2P_UPDATE_VERSION__ = "v1"
 
+__LOCATION_CACHE__ = "/data/.location"
+
 
 def _cpus():
     data = {}
@@ -317,6 +319,14 @@ def _location():
     ext_ip = _external_ip()
     if ext_ip is None:
         return None
+    if path.exists(__LOCATION_CACHE__):
+        try:
+            with open(__LOCATION_CACHE__, 'r') as f:
+                loc = json.load(f)
+                if 'ip' in loc and loc['ip'] == ext_ip:
+                    return loc
+        except:
+            pass
     conn = httplib.HTTPConnection("api.ipstack.com")
     conn.request("GET", "/%s?access_key=%s" % (ext_ip, "f2426e25c518a8fbd2ae2272d69edb8c"))
     res = conn.getresponse()
@@ -324,6 +334,8 @@ def _location():
     if res.status == 200:
         try:
             loc = json.loads(res.read())
+            with open(__LOCATION_CACHE__, 'w') as f:
+                json.dump(loc, f)
         except:
             pass
     conn.close()
