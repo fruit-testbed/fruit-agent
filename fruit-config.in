@@ -144,7 +144,7 @@ setup_ntp_boot() {
 	for s in "pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]')"; do
 		echo "server ${s}" >> /etc/ntp.conf
 	done
-	echo 'NTPD_OPTS="-N"' > /etc/conf.d/ntpd
+	echo 'NTPD_OPTS="-N -l"' > /etc/conf.d/ntpd
 }
 
 setup_ntp_default() {
@@ -481,6 +481,56 @@ setup_p2p_update() {
 	fi
 }
 
+setup_dnsmasq() {
+	local pid=$(pidof dnsmasq)
+	local iface=$(fruit-value /dnsmasq/interface)
+	local addr="10.2.0.1/24"
+	local dhcprange="10.2.0.10,10.2.0.254,24"
+
+	if [ "$pid" = "" ]; then
+		[ "$iface" = "" ] && return 0
+	else
+		if [ "$iface" = "" ]; then
+			rc-service stop dnsmasq
+			rm -f /var/run/fruit.dnsmasq
+			ip addr flush dev ${iface}
+			return 0
+		elif [ -f /var/run/fruit.dnsmasq ] && [ "$(cat /var/run/fruit.dnsmasq)" = "$iface" ]; then
+			return 0
+		fi
+
+		rc-service stop dnsmasq
+		rm -f /var/run/fruit.dnsmasq
+		ip addr flush dev ${iface}
+	fi
+
+	ip addr add ${addr} brd + dev ${iface}
+	[ $? -ne 0 ] && return 1
+	ip link set ${iface} up
+	[ $? -ne 0 ] && return 2
+
+	ip=$(echo "$addr" | cut -d'/' -f1)
+	cat > /etc/dnsmasq.d/fruit.conf <<-EOF
+	interface=${iface}
+
+	domain=cluster.fruit-testbed.org
+	dhcp-range=${dhcprange}
+	dhcp-option=option:ntp-server,${ip}
+	log-dhcp
+	EOF
+
+	grep "^dnsmasq" /etc/passwd 1>/dev/null 2>/dev/null
+	if [ $? -ne 0 ]; then
+		echo 'dnsmasq:x:105:105:dnsmasq:/dev/null:/sbin/nologin' >> /etc/passwd
+		echo 'dnsmasq:x:105:' >> /etc/group
+		echo 'dnsmasq:!::0:::::' >> /etc/shadow
+	fi
+
+	rc-service dnsmasq restart \
+		&& echo "$iface" > /var/run/fruit.dnsmasq
+	return $?
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -511,6 +561,7 @@ case "$(rc-status -r)" in
 		copy_config_local_to_run
 		download_config_server_to_run
 		do_bootafter
+		setup_dnsmasq
 		setup_p2p_update
 		setup_kernel_modules
 		setup_dtparam
