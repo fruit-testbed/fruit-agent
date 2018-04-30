@@ -158,14 +158,12 @@ setup_ntp_default() {
 }
 
 setup_wpa_supplicant() {
-	ssid=$(fruit-value '\["wpa","ssid"\]')
+	local ssid=$(fruit-value '\["wpa","ssid"\]')
 	[ "$ssid" = "" ] && return 1
 
-	[ "$wpa" = yes ] && return 0
-	wpa=yes
-
-	username=$(fruit-value '\["wpa","username"\]')
-	password=$(fruit-value '\["wpa","password"\]')
+	local username=$(fruit-value '\["wpa","username"\]')
+	local password=$(fruit-value '\["wpa","password"\]')
+	[ "$username" = "" ] && [ "$password" = "" ] && return 2
 
 	if [ "$username" != "" ]; then
 		cat > /etc/wpa_supplicant/wpa_supplicant.conf <<EOL
@@ -191,29 +189,28 @@ EOL
 # $0: interface to be set up
 # $1: interface requires wpa_supplicant
 setup_network_interface() {
-	iface=$1
-	wpa_supp=$2
-	addr=$(fruit-value "\[\"network\",\"$iface\"\]")
-	if [ "$addr" = "" ]; then
-		addr="dhcp"
-	fi
-	wpa_pass=$(fruit-value '\["wpa","password"\]')
+	local outfile=$1
+	local iface=$2
+	local wpa_supp=$3
+	local addr=$(fruit-value "\[\"network\",\"$iface\"\]")
+	local wpa_pass=$(fruit-value '\["wpa","password"\]')
+	
 	if [ "$wpa_pass" = "" ]; then
 		wpa_supp="no"
 	fi
 
 	if [ "$addr" = "dhcp" ]; then
-		cat >> /etc/network/interfaces <<-EOL
+		cat >> $outfile <<-EOL
 
 			auto $iface
 			iface $iface inet dhcp
 		EOL
-		[ "$wpa_supp" = yes ] && cat >> /etc/network/interfaces <<EOL
+		[ "$wpa_supp" = yes ] && cat >> $outfile <<EOL
 	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
 	post-down killall -q wpa_supplicant
 EOL
 		logger -st fruit "Set $iface to $addr"
-	else
+	elif [ "$addr" != "" ]; then
 		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
 		if [ "$ipaddr" = "" ]; then
 			logger -st fruit "ERROR: invalid address of $iface: $ipaddr"
@@ -222,7 +219,7 @@ EOL
 			netmask=$(sipcalc "$addr" | grep 'Network mask\t' | awk '{print $4}')
 			network=$(sipcalc "$addr" | grep 'Network address\t' | awk '{print $4}')
 			broadcast=$(sipcalc "$addr" | grep 'Broadcast address\t' | awk '{print $4}')
-			cat >> /etc/network/interfaces <<EOL
+			cat >> $outfile <<EOL
 
 auto $iface
 iface $iface inet static
@@ -231,7 +228,7 @@ iface $iface inet static
 	network $network
 	broadcast $broadcast
 EOL
-			[ "$wpa_supp" = yes ] && cat >> /etc/network/interfaces <<EOL
+			[ "$wpa_supp" = yes ] && cat >> $outfile <<EOL
 	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
 	post-down killall -q wpa_supplicant
 EOL
@@ -242,10 +239,10 @@ EOL
 
 setup_network() {
 	local ifaces=$(ip -o link show | cut -d' ' -f2 | sed 's/:$//')
-	local wpa=no
+	local outfile=/etc/network/interfaces
 
 	# loopback
-	cat > /etc/network/interfaces <<-EOL
+	cat > $outfile <<-EOL
 		auto lo
 		iface lo inet loopback
 
@@ -254,11 +251,11 @@ setup_network() {
 	for iface in ${ifaces}; do
 		case "$iface" in
 			eth*)
-				setup_network_interface "$iface"
+				setup_network_interface "$outfile" "$iface"
 				;;
 			wlan*)
 				setup_wpa_supplicant && \
-					setup_network_interface "$iface" "yes"
+					setup_network_interface "$outfile" "$iface" "yes"
 				;;
 		esac
 	done
