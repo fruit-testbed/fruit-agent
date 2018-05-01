@@ -531,6 +531,109 @@ setup_dnsmasq() {
 	return $?
 }
 
+setup_nat() {
+	local iface=$(fruit-value /nat)
+
+	if [ "$iface" != "" ]; then
+		enable_nat "$iface"
+	else
+		disable_nat
+	fi
+
+	return $?
+}
+
+disable_nat() {
+	[ ! -f /var/run/fruit.nat ] && return 0
+
+	local iface=$(cat /var/run/fruit.nat 2>/dev/null | awk '{print $1}')
+	local netaddr=$(cat /var/run/fruit.nat 2>/dev/null | awk '{print $2}')
+	local ret=0
+
+	logger -st fruit "disabling NAT on interface:$iface network-address:$netaddr"
+
+	iptables -C FORWARD -o ${iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 1>/dev/null 2>/dev/null
+	[ $? -eq 0 ] \
+		&& iptables -D FORWARD -o ${iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+
+	iptables -C FORWARD -i ${iface} ! -o ${iface} -j ACCEPT 1>/dev/null 2>/dev/null
+	[ $? -eq 0 ] \
+		&& iptables -D FORWARD -i ${iface} ! -o ${iface} -j ACCEPT 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+
+	iptables -t nat -C POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null
+	[ $? -eq 0 ] \
+		&& iptables -t nat -D POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+
+	[ $ret -eq 0 ] \
+		&& rm -f /var/run/fruit.nat \
+		|| false
+	
+	ret=$?
+	[ $ret -eq 0 ] \
+		&& logger -st fruit "disabled NAT on interface:$iface network-address:$netaddr"
+
+	return $ret
+}
+
+enable_nat() {
+	local iface
+	local ret=0
+
+	if [ -f /var/run/fruit.nat ]; then
+		iface=$(cat /var/run/fruit.nat 2>/dev/null | awk '{print $1}')
+		[ "$iface" = "$1" ] && return 0
+		disable_nat
+		[ $? -ne 0 ] && return 11
+	fi
+
+	[ "$1" = "" ] && return 0
+
+	sysctl -w net.ipv4.ip_forward=1 1>/dev/null
+	ret=$((ret + $?))
+
+	iface=$1
+	local addr=$(ip -4 addr show dev ${iface} scope global up | grep 'inet ' | awk '{print $2}')
+	local netaddr="$(ipcalc -n "$addr" | cut -d'=' -f2)/$(echo "$addr" | cut -d'/' -f2)"
+
+	[ "$netaddr" = "" ] && return 12
+
+	logger -st fruit "enabling NAT on interface:$iface network-address:$netaddr"
+
+	iptables -C FORWARD -o ${iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 1>/dev/null 2>/dev/null
+	[ $? -ne 0 ] \
+		&& iptables -A FORWARD -o ${iface} -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+
+	iptables -C FORWARD -i ${iface} ! -o ${iface} -j ACCEPT 1>/dev/null 2>/dev/null
+	[ $? -ne 0 ] \
+		&& iptables -A FORWARD -i ${iface} ! -o ${iface} -j ACCEPT 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+	
+	iptables -t nat -C POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null
+	[ $? -ne 0 ] \
+		&& iptables -t nat -A POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null \
+		|| true
+	ret=$((ret + $?))
+
+	[ $ret -eq 0 ] \
+		&& echo "$iface $netaddr" > /var/run/fruit.nat \
+		|| false
+
+	ret=$?
+	[ $ret -eq 0 ] \
+		&& 	logger -st fruit "enabled NAT on interface:$iface network-address:$netaddr"
+
+	return $ret
+}
+
 ##### main #####
 
 lockfile="/run/$(basename $0).lock"
@@ -562,6 +665,7 @@ case "$(rc-status -r)" in
 		download_config_server_to_run
 		do_bootafter
 		setup_dnsmasq
+		setup_nat
 		setup_p2p_update
 		setup_kernel_modules
 		setup_dtparam
