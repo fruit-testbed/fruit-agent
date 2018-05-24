@@ -332,12 +332,12 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	if [ "$enabled" = true ]; then
-		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
-		[ "$(status docker)" = "stopped" ] && rc-service docker start || true
-	else
+	if [ "$enables" = "false" ]; then
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
 		[ "$(status docker)" = "started" ] && rc-service docker stop || true
+	else
+		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
+		[ "$(status docker)" = "stopped" ] && rc-service docker start || true
 	fi
 	ret=$((ret + $?))
 
