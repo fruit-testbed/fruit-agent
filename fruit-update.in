@@ -59,10 +59,14 @@ apply_update() {
 	mkdir -p $tmp/root $tmp/work $update \
 		&& mount -t overlay \
 			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
-			overlayfs $update \
-		&& apk -q --root $update update 1>>$apk_log_file 2>>$apk_log_file \
-		&& apk --root $update --purge --wait 1200 upgrade \
-			1>>$apk_log_file 2>>$apk_log_file \
+			overlayfs $update
+
+	if [ $? -eq 0 ]; then
+		# ignore any error when updating the packages list
+		apk -q --root $update update 1>>$apk_log_file 2>>$apk_log_file
+		# upgrade packages
+		apk --root $update --purge --wait 1200 upgrade 1>>$apk_log_file 2>>$apk_log_file
+	fi
 
 	ret=$((ret + $?))
 	sync
