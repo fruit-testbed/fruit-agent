@@ -61,8 +61,10 @@ apply_update() {
 			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
 			overlayfs $update
 
+	ret=$((ret + $?))
+
 	if [ $? -eq 0 ]; then
-		# ignore any error when updating the packages list
+		# ignore any error when updating the packages list
 		apk -q --root $update update 1>>$apk_log_file 2>>$apk_log_file
 		# upgrade packages
 		apk --root $update --purge --wait 1200 upgrade 1>>$apk_log_file 2>>$apk_log_file
