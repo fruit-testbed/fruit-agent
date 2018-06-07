@@ -31,10 +31,10 @@ def _cpus():
                 break
             if line[:4] == "cpu ":
                 continue
-            parts = re.split("\s+", line.strip())
+            parts = re.split(r"\s+", line.strip())
             label = parts.pop(0)
-            user, nice, system, idle, iowait, irq, softirq, steal, guest, \
-                    guest_nice = map(lambda s: float(s), parts)
+            user, nice, system, idle, iowait, irq, softirq, steal, _, \
+                    _ = map(lambda s: float(s), parts)
             idle = idle + iowait
             non_idle = user + nice + system + irq + softirq + steal
             total = idle + non_idle
@@ -49,7 +49,7 @@ def _cpus():
 
 def _memory():
     lines = sp.check_output(["free", "-b"]).splitlines()
-    _, total, used, free, _, buffers, _ = re.split("\s+", lines[1].strip())
+    _, total, used, free, _, buffers, _ = re.split(r"\s+", lines[1].strip())
     return {
         "total": total,
         "used": used,
@@ -64,7 +64,7 @@ def _volumes():
     included = ["/", "/media/root-rw", "/media/root-ro", "/media/data"]
     volumes = {}
     for line in lines:
-        fs, typ, size, used, free, _, mounted = re.split("\s+", line.strip())
+        fs, typ, size, used, free, _, mounted = re.split(r"\s+", line.strip())
         if mounted in included:
             volumes[mounted] = {
                 "filesystem": fs,
@@ -81,17 +81,17 @@ def _os_service():
     lines.pop(0)
     services = {}
     for line in lines:
-        name, _, status, _ = re.split("\s+", line.strip())
+        name, _, status, _ = re.split(r"\s+", line.strip())
         services[name] = status
     return services
 
 
 def _os_mode():
     try:
-        mode = sp.check_output(["fruit-value", '\["mode"\]']).strip()
+        mode = sp.check_output(["fruit-value", "/mode"]).strip()
         if mode in ["master", "slave"]:
             return mode
-    except sp.CalledProcessError as cpe:
+    except sp.CalledProcessError:
         pass
     return "standalone"
 
@@ -111,7 +111,7 @@ def _os_master_address():
 def _pkg_version(name):
     try:
         lines = sp.check_output(["apk", "version", name]).splitlines()
-        return re.split("\s+", lines[1])[0].lstrip("%s-" % name)
+        return re.split(r"\s+", lines[1])[0].lstrip("%s-" % name)
     except:
         return None
 
@@ -170,7 +170,7 @@ def _board():
     cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
     line = sp.check_output(["grep", "Revision"], stdin=cat.stdout)
     cat.wait()
-    _, _, revision = re.split("\s+", line.strip())
+    _, _, revision = re.split(r"\s+", line.strip())
 
     model = sp.check_output(["cat", "/proc/device-tree/model"]).strip()
     model = model[:-1]
@@ -209,7 +209,7 @@ def _network():
 
 def _api_key():
     try:
-        return sp.check_output(["fruit-value", '\["api_key"\]']).strip()
+        return sp.check_output(["fruit-value", "/api_key"]).strip()
     except:
         return ""
 
