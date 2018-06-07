@@ -197,7 +197,8 @@ def _network():
                 nets[iface] = None
                 continue
             ip = sp.Popen(["ip", "addr", "show", "dev", iface, "scope", "global"], stdout=sp.PIPE)
-            inets = sp.check_output(["grep", " inet"], stdin=ip.stdout)
+            grep = sp.Popen(["grep", " inet"], stdin=ip.stdout, stdout=sp.PIPE)
+            inets, _ = grep.communicate()
             ip.wait()
             nets[iface] = []
             for inet in inets.strip().splitlines():
