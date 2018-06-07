@@ -491,7 +491,7 @@ setup_dnsmasq() {
 		[ "$iface" = "" ] && return 0
 	else
 		if [ "$iface" = "" ]; then
-			rc-service stop dnsmasq
+			rc-service dnsmasq stop
 			rm -f /var/run/fruit.dnsmasq
 			ip addr flush dev ${iface}
 			return 0
@@ -499,7 +499,7 @@ setup_dnsmasq() {
 			return 0
 		fi
 
-		rc-service stop dnsmasq
+		rc-service dnsmasq stop
 		rm -f /var/run/fruit.dnsmasq
 		ip addr flush dev ${iface}
 	fi
