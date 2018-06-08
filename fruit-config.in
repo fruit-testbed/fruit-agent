@@ -356,12 +356,12 @@ setup_sshd() {
 setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
 	*/1   *  *  *  *  fruit-monitor
-	*/15  *  *  *  *  timeout -t 600 fruit-config cron
-	*/30     *  *  *  *  fruit-update cron
+	*/5   *  *  *  *  timeout -t 1200 fruit-config cron
+	*/30  *  *  *  *  fruit-update cron
 	59    4  *  *  *  [ -f /run/fruit-update.reboot ] && reboot || true
 	*/3   *  *  *  *  fruit-container
 	EOL
-	logger -st fruit "Added cron entries of fruit-monitor and fruit-config"
+	logger -st fruit "Added cron entries of fruit-{monitor,config,update,container}"
 }
 
 fix_syslogd_config() {
@@ -637,13 +637,11 @@ enable_nat() {
 
 ##### main #####
 
-lockfile="/run/$(basename $0).lock"
-[ -f lockfile ] && [ "$(find ${lockfile} -mmin -30 2>/dev/null)" = "" ] \
-	&& logger -st fruit "ERROR: Lock file ${lockfile} exists" \
-	&& exit 1
-
-rm -f ${lockfile}
-touch ${lockfile}
+pidof fruit-config 1>/dev/null 2>/dev/null
+if [ $? -eq 0 ]; then
+	echo "Exiting because another instance of fruit-config is running."
+	exit 0
+fi
 
 # random sleep between 0-299 seconds
 [ "$1" = "cron" ] && sleep $(shuf -i 0-299 -n 1)
@@ -684,7 +682,5 @@ case "$(rc-status -r)" in
 		true
 		;;
 esac
-
-rm -f ${lockfile}
 
 exit 0
