@@ -118,6 +118,14 @@ def main():
                 (cpe.returncode, cpe.cmd))
         raise RuntimeError, 'ERROR: Failed to get container configs'
 
+    try:
+        with open(os.devnull, 'w') as FNULL:
+            sp.check_call(['pidof', 'fruit-container'], stdout=FNULL, stderr=FNULL)
+            log.info('Exiting because another fruit-container is running.')
+            return
+    except:
+        pass
+
     if isinstance(containers, dict):
         for name in containers:
             deploy(name, containers[name])
