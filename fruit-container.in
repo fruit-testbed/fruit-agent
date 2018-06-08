@@ -10,6 +10,7 @@ from os import path
 import os
 import logging
 import logging.handlers
+import hashlib
 
 
 __DOCKER_SOCK__ = '/var/run/docker.sock'
@@ -83,21 +84,35 @@ def __remove_dangling_images():
                 (cpe.returncode, cpe.cmd))
 
 
+def get_specs_signature(specs):
+    return hashlib.sha256(json.dumps(specs, sort_keys=True, separators=(',', ':'))).hexdigest()
+
+
 def deploy(name, specs):
     deployed = list_containers()
     name = name + '.fruit'
     docker_name = '/' + name
+    signature = get_specs_signature(specs)
     for container in deployed:
         if docker_name in container['Names']:
             log.info("Container '%s' has been deployed" % name)
             return True
 
-    cmd = ['docker', 'run']
+    cmd = ['docker', 'run', '--rm', '-d']
+    # labels
+    cmd += ['-l', 'fruit.signature=%s' % signature]
+    cmd += ['-l', 'fruit.specification=%s' % json.dumps(specs, sort_keys=True, separators=(',', ':'))]
+    # parameters
     if 'parameters' in specs and isinstance(specs['parameters'], list):
         cmd = cmd + specs['parameters']
-    cmd += ['--rm', '--name', name, '-d', specs['image']]
+    # name
+    cmd += ['--name', name]
+    # image
+    cmd += [specs['image']]
+    # commands
     if 'command' in specs and isinstance(specs['command'], list):
         cmd += specs['command']
+
     try:
         sp.check_call(cmd)
         log.info("Started container '%s' (docker-name: %s) -- %s" % \
