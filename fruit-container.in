@@ -108,16 +108,7 @@ def deploy(name, specs):
 
 
 def main():
-    try:
-        val = sp.check_output([__FRUIT_VALUE__, '/container']).strip()
-        if len(val) < 2:
-            return
-        containers = json.loads(val)
-    except sp.CalledProcessError as cpe:
-        log.error('Failed getting container config, error-code: %d, command: %s' % \
-                (cpe.returncode, cpe.cmd))
-        raise RuntimeError, 'ERROR: Failed to get container configs'
-
+    # check if there's another instance of fruit-container is running
     try:
         with open(os.devnull, 'w') as FNULL:
             sp.check_call(['pidof', 'fruit-container'], stdout=FNULL, stderr=FNULL)
@@ -125,6 +116,23 @@ def main():
             return
     except:
         pass
+
+    try:
+        val = sp.check_output([__FRUIT_VALUE__, '/container']).strip()
+        if len(val) < 2:
+            # no container defined in fruit.json
+            containers = {}
+        else:
+            containers = json.loads(val)
+    except sp.CalledProcessError as cpe:
+        if cpe.returncode == 2:
+            # no container defined in fruit.json
+            containers = {}
+        else:
+            # there's something wrong with 'fruit-value /container'
+            log.error('Failed getting container config, error-code: %d, command: %s' % \
+                    (cpe.returncode, cpe.cmd))
+            raise RuntimeError, 'ERROR: Failed to get container configs'
 
     if isinstance(containers, dict):
         for name in containers:
