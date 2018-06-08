@@ -40,7 +40,7 @@ def cleanup(names):
                 continue
             if name not in names:
                 try:
-                    sp.check_call(['docker', 'rm', docker_name])
+                    sp.check_call(['docker', 'stop', docker_name])
                     log.info("Deleted container '%s' (docker-name: %s)" % (name, docker_name))
                 except sp.CalledProcessError as cpe:
                     log.error("Failed deleting container '%s' (docker-name: %s), error-code: %d, command: %s" % \
@@ -57,12 +57,12 @@ def deploy(name, specs):
             log.info("Container '%s' has been deployed" % name)
             return True
 
-    cmd = ['docker', 'run', '-d', '--name', name]
+    cmd = ['docker', 'run']
     if 'parameters' in specs and isinstance(specs['parameters'], list):
         cmd = cmd + specs['parameters']
-    cmd.append(specs['image'])
+    cmd += ['--rm', '--name', name, '-d', specs['image']]
     if 'command' in specs and isinstance(specs['command'], list):
-        cmd = cmd + specs['command']
+        cmd += specs['command']
     try:
         sp.check_call(cmd)
         log.info("Started container '%s' (docker-name: %s) -- %s" % \
