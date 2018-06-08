@@ -7,6 +7,7 @@ import subprocess as sp
 import json
 import sys
 from os import path
+import os
 import logging
 import logging.handlers
 
@@ -46,6 +47,40 @@ def cleanup(names):
                     log.error("Failed deleting container '%s' (docker-name: %s), error-code: %d, command: %s" % \
                             (name, docker_name, cpe.returncode, cpe.cmd))
             break
+    __remove_exited_containers()
+    __remove_dangling_images()
+
+
+def __remove_exited_containers():
+    # remove 'Exited' container
+    try:
+        with open(os.devnull, 'w') as FNULL:
+            docker = sp.Popen(['docker', 'ps', '-a'], stdout=sp.PIPE)
+            grep = sp.Popen(['grep', ' Exited '], stdin=docker.stdout, stdout=sp.PIPE)
+            awk = sp.Popen(['awk', '{print $1}'], stdin=grep.stdout, stdout=sp.PIPE)
+            sp.call(['xargs', 'docker', 'rm'], stdin=awk.stdout, stderr=FNULL, stdout=FNULL)
+            docker.wait()
+            grep.wait()
+            awk.wait()
+    except sp.CalledProcessError as cpe:
+        log.error('Failed deleting exited-containers, error-code: %d, command: %s' % \
+                (cpe.returncode, cpe.cmd))
+
+
+def __remove_dangling_images():
+    # remove dangling images ('<none>' in both REPOSITORY and TAG fields)
+    try:
+        with open(os.devnull, 'w') as FNULL:
+            docker = sp.Popen(['docker', 'images'], stdout=sp.PIPE)
+            grep = sp.Popen(['grep', '<none> '], stdin=docker.stdout, stdout=sp.PIPE)
+            awk = sp.Popen(['awk', '{print $3}'], stdin=grep.stdout, stdout=sp.PIPE)
+            sp.call(['xargs', 'docker', 'rmi'], stdin=awk.stdout, stderr=FNULL, stdout=FNULL)
+            docker.wait()
+            grep.wait()
+            awk.wait()
+    except sp.CalledProcessError as cpe:
+        log.error('Failed deleting dangling container-images, error-code: %d, command: %s' % \
+                (cpe.returncode, cpe.cmd))
 
 
 def deploy(name, specs):
