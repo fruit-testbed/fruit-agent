@@ -43,10 +43,10 @@ def cleanup(names):
             if name not in names:
                 try:
                     sp.check_call(['docker', 'stop', docker_name])
-                    log.info("Deleted container '%s' (docker-name: %s)" % (name, docker_name))
+                    log.info("Deleted container '%s'" % name)
                 except sp.CalledProcessError as cpe:
-                    log.error("Failed deleting container '%s' (docker-name: %s), error-code: %d, command: %s" % \
-                            (name, docker_name, cpe.returncode, cpe.cmd))
+                    log.error("Failed deleting container '%s', error-code: %d,\
+ command: %s" % (name, cpe.returncode, cpe.cmd))
             break
     __remove_exited_containers()
     __remove_dangling_images()
@@ -57,15 +57,18 @@ def __remove_exited_containers():
     try:
         with open(os.devnull, 'w') as FNULL:
             docker = sp.Popen(['docker', 'ps', '-a'], stdout=sp.PIPE)
-            grep = sp.Popen(['grep', ' Exited '], stdin=docker.stdout, stdout=sp.PIPE)
-            awk = sp.Popen(['awk', '{print $1}'], stdin=grep.stdout, stdout=sp.PIPE)
-            sp.call(['xargs', 'docker', 'rm'], stdin=awk.stdout, stderr=FNULL, stdout=FNULL)
+            grep = sp.Popen(['grep', ' Exited '], stdin=docker.stdout,
+                            stdout=sp.PIPE)
+            awk = sp.Popen(['awk', '{print $1}'], stdin=grep.stdout,
+                           stdout=sp.PIPE)
+            sp.call(['xargs', 'docker', 'rm'], stdin=awk.stdout, stderr=FNULL,
+                    stdout=FNULL)
             docker.wait()
             grep.wait()
             awk.wait()
     except sp.CalledProcessError as cpe:
-        log.error('Failed deleting exited-containers, error-code: %d, command: %s' % \
-                (cpe.returncode, cpe.cmd))
+        log.error('Failed deleting exited-containers, error-code: %d, \
+command: %s' % (cpe.returncode, cpe.cmd))
 
 
 def __remove_dangling_images():
@@ -73,19 +76,24 @@ def __remove_dangling_images():
     try:
         with open(os.devnull, 'w') as FNULL:
             docker = sp.Popen(['docker', 'images'], stdout=sp.PIPE)
-            grep = sp.Popen(['grep', '<none> '], stdin=docker.stdout, stdout=sp.PIPE)
-            awk = sp.Popen(['awk', '{print $3}'], stdin=grep.stdout, stdout=sp.PIPE)
-            sp.call(['xargs', 'docker', 'rmi'], stdin=awk.stdout, stderr=FNULL, stdout=FNULL)
+            grep = sp.Popen(['grep', '<none> '], stdin=docker.stdout,
+                            stdout=sp.PIPE)
+            awk = sp.Popen(['awk', '{print $3}'], stdin=grep.stdout,
+                           stdout=sp.PIPE)
+            sp.call(['xargs', 'docker', 'rmi'], stdin=awk.stdout, stderr=FNULL,
+                    stdout=FNULL)
             docker.wait()
             grep.wait()
             awk.wait()
     except sp.CalledProcessError as cpe:
-        log.error('Failed deleting dangling container-images, error-code: %d, command: %s' % \
-                (cpe.returncode, cpe.cmd))
+        log.error('Failed deleting dangling container-images, error-code: %d, \
+command: %s' % (cpe.returncode, cpe.cmd))
 
 
 def get_specs_signature(specs):
-    return hashlib.sha256(json.dumps(specs, sort_keys=True, separators=(',', ':'))).hexdigest()
+    return hashlib.sha256(
+            json.dumps(specs, sort_keys=True,separators=(',', ':'))
+        ).hexdigest()
 
 
 def deploy(name, specs):
@@ -104,15 +112,16 @@ def deploy(name, specs):
                 sp.check_call(['docker', 'stop', name])
                 log.info("Deleted container '%s'" % name)
             except sp.CalledProcessError as cpe:
-                log.error("Failed re-deploying container '%s' due to unable stopping \
-the old one, error-code: %d, command: %s" % \
+                log.error("Failed re-deploying container '%s' due to unable \
+stopping the old one, error-code: %d, command: %s" % \
                         (name, cpe.returncode, cpe.cmd))
                 return False
 
     cmd = ['docker', 'run', '--rm', '-d']
     # labels
     cmd += ['-l', 'fruit.signature=%s' % signature]
-    cmd += ['-l', 'fruit.specification=%s' % json.dumps(specs, sort_keys=True, separators=(',', ':'))]
+    cmd += ['-l', 'fruit.specification=%s' %
+            json.dumps(specs, sort_keys=True, separators=(',', ':'))]
     # parameters
     if 'parameters' in specs and isinstance(specs['parameters'], list):
         cmd = cmd + specs['parameters']
@@ -126,18 +135,18 @@ the old one, error-code: %d, command: %s" % \
 
     try:
         sp.check_call(cmd)
-        log.info("Started container '%s' (docker-name: %s) -- %s" % \
-                (name, docker_name, ' '.join(cmd)))
+        log.info("Started container '%s', command: %s" % (name, ' '.join(cmd)))
     except sp.CalledProcessError as cpe:
-        log.error("Failed starting container '%s' (docker-name: %s), error-code: %d, command: %s" % \
-                (name, docker_name, cpe.returncode, cpe.cmd))
+        log.error("Failed starting container '%s', error-code: %d, \
+command: %s" % (name, cpe.returncode, cpe.cmd))
 
 
 def main():
     # check if there's another instance of fruit-container is running
     try:
         with open(os.devnull, 'w') as FNULL:
-            sp.check_call(['pidof', 'fruit-container'], stdout=FNULL, stderr=FNULL)
+            sp.check_call(['pidof', 'fruit-container'], stdout=FNULL,
+                          stderr=FNULL)
             log.info('Exiting because another fruit-container is running.')
             return
     except:
@@ -156,8 +165,8 @@ def main():
             containers = {}
         else:
             # there's something wrong with 'fruit-value /container'
-            log.error('Failed getting container config, error-code: %d, command: %s' % \
-                    (cpe.returncode, cpe.cmd))
+            log.error('Failed getting container config, error-code: %d, \
+command: %s' % (cpe.returncode, cpe.cmd))
             raise RuntimeError, 'ERROR: Failed to get container configs'
 
     if isinstance(containers, dict):
