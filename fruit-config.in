@@ -372,7 +372,7 @@ fix_syslogd_config() {
 }
 
 fix_syslogd_timestamp() {
-	if [ "$(tail -1 /var/log/messages | cut -d' ' -f4)" != "$(hostname)" ]; then
+	if [ "$(tail -1 /var/log/messages | awk '{print $4}')" != "$(hostname)" ]; then
 		# restart syslogd so it can pick up updated system time set by ntp
 		rc-service syslog restart
 	fi
