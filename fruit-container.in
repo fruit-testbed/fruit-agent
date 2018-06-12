@@ -69,11 +69,15 @@ error-code: %d, command: %s' % (cpe.returncode, cpe.cmd))
 
 
 def __delete_container(cid):
+    if not path.exists(__DOCKER_SOCK__):
+        raise RuntimeError, 'Docker daemon is not running.'
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'DELETE', 'http:/%s/containers/%s' % (__DOCKER_API_VERSION__, cid)])
 
 
 def __stop_container(cid):
+    if not path.exists(__DOCKER_SOCK__):
+        raise RuntimeError, 'Docker daemon is not running.'
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'POST', 'http:/%s/containers/%s/stop' % (__DOCKER_API_VERSION__, cid)])
 
