@@ -24,6 +24,9 @@ handler = logging.handlers.SysLogHandler(address = '/dev/log')
 log.addHandler(handler)
 
 
+'''
+Return a list of Docker containers.
+'''
 def list_containers():
     if not path.exists(__DOCKER_SOCK__):
         raise RuntimeError, 'Docker daemon is not running.'
@@ -75,6 +78,10 @@ def __stop_container(cid):
         'POST', 'http:/%s/containers/%s/stop' % (__DOCKER_API_VERSION__, cid)])
 
 
+'''
+Remove non-fruit containers, that are containers whose names without extension
+'.fruit'.
+'''
 def __remove_non_fruit_exited_containers():
     def __filter(c):
         return '.fruit' not in map(lambda n: path.splitext(n)[1], c['Names']) \
@@ -113,6 +120,9 @@ def get_specs_signature(specs):
         ).hexdigest()
 
 
+'''
+Deploy Docker containers as specified in config file.
+'''
 def deploy(name, specs):
     deployed = list_containers()
     name = name + '.fruit'
