@@ -32,43 +32,60 @@ def list_containers():
     return json.loads(sp.check_output(cmd))
 
 
-def cleanup(names):
-    deployed = list_containers()
-    for container in deployed:
-        for docker_name in container['Names']:
-            docker_name = docker_name.lstrip('/')
-            name, ext = path.splitext(docker_name)
-            if ext != '.fruit':
-                continue
-            if name not in names:
-                try:
-                    sp.check_call(['docker', 'stop', docker_name])
-                    log.info("Deleted container '%s'" % name)
-                except sp.CalledProcessError as cpe:
-                    log.error("Failed deleting container '%s', error-code: %d,\
- command: %s" % (name, cpe.returncode, cpe.cmd))
-            break
-    __remove_exited_containers()
+'''
+Clean-up Docker by removing deleted/exited containers and removing dangling
+images. A dangling image is an image whose repository and tag are '<none>'
+and it is not being used by any container.
+'''
+def cleanup(not_removed):
+    __remove_fruit_containers(not_removed)
+    __remove_non_fruit_exited_containers()
     __remove_dangling_images()
 
 
-def __remove_exited_containers():
-    # remove 'Exited' container
-    try:
-        with open(os.devnull, 'w') as FNULL:
-            docker = sp.Popen(['docker', 'ps', '-a'], stdout=sp.PIPE)
-            grep = sp.Popen(['grep', ' Exited '], stdin=docker.stdout,
-                            stdout=sp.PIPE)
-            awk = sp.Popen(['awk', '{print $1}'], stdin=grep.stdout,
-                           stdout=sp.PIPE)
-            sp.call(['xargs', 'docker', 'rm'], stdin=awk.stdout, stderr=FNULL,
-                    stdout=FNULL)
-            docker.wait()
-            grep.wait()
-            awk.wait()
-    except sp.CalledProcessError as cpe:
-        log.error('Failed deleting exited-containers, error-code: %d, \
-command: %s' % (cpe.returncode, cpe.cmd))
+'''
+Remove fruit containers unless its name is in 'not_removed' list.
+'''
+def __remove_fruit_containers(not_removed):
+    def __filter(c):
+        for (name, ext) in map(lambda n: path.splitext(n), c['Names']):
+            if ext == '.fruit' and name[1:] in not_removed:
+                return False
+        return True
+
+    for container in filter(__filter, list_containers()):
+        try:
+            if __stop_container(container['Id']) == 0:
+                log.info("Stopped container '%s'" % container['Names'])
+                __delete_container(container['Id'])
+            else:
+                log.error("Failed stopping container '%s'" % container['Names'])
+        except sp.CalledProcessError as cpe:
+            log.error('Failed deleting fruit containers, \
+error-code: %d, command: %s' % (cpe.returncode, cpe.cmd))
+
+
+def __delete_container(cid):
+    return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
+        'DELETE', 'http:/%s/containers/%s' % (__DOCKER_API_VERSION__, cid)])
+
+
+def __stop_container(cid):
+    return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
+        'POST', 'http:/%s/containers/%s/stop' % (__DOCKER_API_VERSION__, cid)])
+
+
+def __remove_non_fruit_exited_containers():
+    def __filter(c):
+        return '.fruit' not in map(lambda n: path.splitext(n)[1], c['Names']) \
+                and c['State'] == 'exited'
+
+    for container in filter(__filter, list_containers()):
+        try:
+            __delete_container(container['Id'])
+        except sp.CalledProcessError as cpe:
+            log.error('Failed deleting (non-fruit) exited-containers, \
+error-code: %d, command: %s' % (cpe.returncode, cpe.cmd))
 
 
 def __remove_dangling_images():
