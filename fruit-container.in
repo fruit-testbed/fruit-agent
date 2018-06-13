@@ -11,11 +11,13 @@ import os
 import logging
 import logging.handlers
 import hashlib
+import errno
 
 
 __DOCKER_SOCK__ = '/var/run/docker.sock'
 __DOCKER_API_VERSION__ = 'v1.35'
 __FRUIT_VALUE__ = '/usr/sbin/fruit-value'
+__FRUIT_CONTAINER_DATA_VOLUME__ = '/data/.container-data'
 
 
 log = logging.getLogger('fruit-container')
@@ -125,6 +127,31 @@ def get_specs_signature(specs):
 
 
 '''
+Convert a relative container volume path to an absolute one.
+'''
+def __absolute_volume_path(p):
+    if not path.exists(__FRUIT_CONTAINER_DATA_VOLUME__):
+        try:
+            os.makedirs(__FRUIT_CONTAINER_DATA_VOLUME__)
+        except OSError as exc:
+            if exc.errno == errno.EEXIST and \
+                    path.isdir(__FRUIT_CONTAINER_DATA_VOLUME__):
+                pass
+            else:
+                raise exc
+    p = path.join(__FRUIT_CONTAINER_DATA_VOLUME__, p.lstrip(path.sep))
+    if not path.exists(p):
+        try:
+            os.makedirs(p)
+        except OSError as exc:
+            if exc.errno == errno.EEXIST and path.isdir(p):
+                pass
+            else:
+                raise exc
+    return p
+
+
+'''
 Deploy Docker containers as specified in config file.
 '''
 def deploy(name, specs):
@@ -153,9 +180,13 @@ stopping the old one, error-code: %d, command: %s" % \
     cmd += ['-l', 'fruit.signature=%s' % signature]
     cmd += ['-l', 'fruit.specification=%s' %
             json.dumps(specs, sort_keys=True, separators=(',', ':'))]
-    # parameters
-    if 'parameters' in specs and isinstance(specs['parameters'], list):
-        cmd = cmd + specs['parameters']
+    # ports
+    if 'port' in specs and isinstance(specs['port'], list):
+        reduce(lambda x, y: x + ['-p', y], [cmd] + specs['port'])
+    # volume
+    if 'volume' in specs and isinstance(specs['volume'], list):
+        reduce(lambda x, y: x + ['-v', __absolute_volume_path(y)],
+               [cmd] + specs['volume'])
     # name
     cmd += ['--name', name]
     # image
