@@ -12,6 +12,7 @@ import logging
 import logging.handlers
 import hashlib
 import errno
+import re
 
 
 __DOCKER_SOCK__ = '/var/run/docker.sock'
@@ -161,6 +162,16 @@ def __absolute_volume_path(p):
     return p
 
 
+def __is_device_tree_loaded(dt):
+    for line in sp.check_output(['/opt/vc/bin/dtoverlay', '-l']).split('\n'):
+        if line[:9] == 'Overlays ':
+            continue
+        parts = re.split(r"\s+", line)
+        if len(parts) >= 3 and parts[2] == dt:
+            return True
+    return False
+
+
 '''
 Deploy Docker containers as specified in config file.
 '''
@@ -184,6 +195,24 @@ def deploy(name, specs):
 stopping the old one, error-code: %d, command: %s" % \
                         (name, cpe.returncode, cpe.cmd))
                 return False
+
+    # Deploy the container because it does not exist
+    for dt in specs['device-tree']:
+        try:
+            if not __is_device_tree_loaded(dt):
+                sp.check_call(['/opt/vc/bin/dtparam', dt])
+        except sp.CalledProcessError:
+            log.error("Failed deploying container '%s' because error when \
+loading device-tree %s" % (name, dt))
+            return False
+
+    for mod in specs['kernel-module']:
+        try:
+            sp.check_call(['/sbin/modprobe', mod])
+        except sp.CalledProcessError:
+            log.error("Failed deploying container '%s' because error when \
+loading kernel-module %s" % (name, mod))
+            return False
 
     cmd = ['docker', 'run', '--rm', '-d']
     # labels
