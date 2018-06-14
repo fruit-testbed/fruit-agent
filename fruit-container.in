@@ -192,11 +192,11 @@ stopping the old one, error-code: %d, command: %s" % \
             json.dumps(specs, sort_keys=True, separators=(',', ':'))]
     # ports
     if 'port' in specs and isinstance(specs['port'], list):
-        reduce(lambda x, y: x + ['-p', y], [cmd] + specs['port'])
+        cmd = reduce(lambda x, y: x + ['-p', y], [cmd] + specs['port'])
     # volume
     if 'volume' in specs and isinstance(specs['volume'], list):
-        reduce(lambda x, y: x + ['-v', __absolute_volume_path(y)],
-               [cmd] + specs['volume'])
+        cmd = reduce(lambda x, y: x + ['-v', __absolute_volume_path(y)],
+                     [cmd] + specs['volume'])
     # device
     if 'device' in specs and isinstance(specs['device'], list):
         for dev in specs['device']:
