@@ -197,22 +197,24 @@ stopping the old one, error-code: %d, command: %s" % \
                 return False
 
     # Deploy the container because it does not exist
-    for dt in specs['device-tree']:
-        try:
-            if not __is_device_tree_loaded(dt):
-                sp.check_call(['/opt/vc/bin/dtparam', dt])
-        except sp.CalledProcessError:
-            log.error("Failed deploying container '%s' because error when \
-loading device-tree %s" % (name, dt))
-            return False
+    if 'device-tree' in specs:
+        for dt in specs['device-tree']:
+            try:
+                if not __is_device_tree_loaded(dt):
+                    sp.check_call(['/opt/vc/bin/dtparam', dt])
+            except sp.CalledProcessError:
+                log.error("Failed deploying container '%s' because error when \
+    loading device-tree %s" % (name, dt))
+                return False
 
-    for mod in specs['kernel-module']:
-        try:
-            sp.check_call(['/sbin/modprobe', mod])
-        except sp.CalledProcessError:
-            log.error("Failed deploying container '%s' because error when \
-loading kernel-module %s" % (name, mod))
-            return False
+    if 'kernel-module' in specs:
+        for mod in specs['kernel-module']:
+            try:
+                sp.check_call(['/sbin/modprobe', mod])
+            except sp.CalledProcessError:
+                log.error("Failed deploying container '%s' because error when \
+    loading kernel-module %s" % (name, mod))
+                return False
 
     cmd = ['docker', 'run', '--rm', '-d']
     # labels
