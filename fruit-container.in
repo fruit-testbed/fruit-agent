@@ -65,9 +65,9 @@ Remove fruit containers unless its name is in 'not_removed' list.
 def __remove_fruit_containers(not_removed):
     def __filter(c):
         for (name, ext) in map(lambda n: path.splitext(n), c['Names']):
-            if ext == '.fruit' and name[1:] in not_removed:
-                return False
-        return True
+            if ext == '.fruit' and name.lstrip('/') not in not_removed:
+                return True
+        return False
 
     for container in filter(__filter, list_containers()):
         try:
