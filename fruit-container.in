@@ -19,11 +19,21 @@ __DOCKER_API_VERSION__ = 'v1.35'
 __FRUIT_VALUE__ = '/usr/sbin/fruit-value'
 __FRUIT_CONTAINER_DATA_VOLUME__ = '/data/.container-data'
 
+# Any file of '/dev/{__PUBLIC_DEVICES__}*' can be bound to the container
+__PUBLIC_DEVICES__ = ['i2c', 'spi', 'ttyUSB']
+
 
 log = logging.getLogger('fruit-container')
 log.setLevel(logging.DEBUG)
 handler = logging.handlers.SysLogHandler(address = '/dev/log')
 log.addHandler(handler)
+
+
+def get_device_file(device):
+    device = device.lstrip(path.sep)
+    for dev in __PUBLIC_DEVICES__:
+        if device[:len(dev)] == dev:
+            return path.join(path.sep, 'dev', device)
 
 
 '''
@@ -187,6 +197,12 @@ stopping the old one, error-code: %d, command: %s" % \
     if 'volume' in specs and isinstance(specs['volume'], list):
         reduce(lambda x, y: x + ['-v', __absolute_volume_path(y)],
                [cmd] + specs['volume'])
+    # device
+    if 'device' in specs and isinstance(specs['device'], list):
+        for dev in specs['device']:
+            dev_file = get_device_file(dev)
+            if dev_file is not None:
+                cmd += ['--device', dev_file]
     # name
     cmd += ['--name', name]
     # image
