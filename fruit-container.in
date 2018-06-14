@@ -20,8 +20,8 @@ __DOCKER_API_VERSION__ = 'v1.35'
 __FRUIT_VALUE__ = '/usr/sbin/fruit-value'
 __FRUIT_CONTAINER_DATA_VOLUME__ = '/data/.container-data'
 
-# Any file of '/dev/{__PUBLIC_DEVICES__}*' can be bound to the container
-__PUBLIC_DEVICES__ = ['i2c', 'spi', 'ttyUSB']
+# Any device file matches '__PUBLIC_DEVICES__*' can be bound to the container
+__PUBLIC_DEVICES__ = ['/dev/i2c', '/dev/spi', '/dev/ttyUSB']
 
 
 log = logging.getLogger('fruit-container')
@@ -31,10 +31,10 @@ log.addHandler(handler)
 
 
 def get_device_file(device):
-    device = device.lstrip(path.sep)
+    device = path.abspath(path.join(path.sep, 'dev', device))
     for dev in __PUBLIC_DEVICES__:
         if device[:len(dev)] == dev:
-            return path.join(path.sep, 'dev', device)
+            return device
 
 
 '''
