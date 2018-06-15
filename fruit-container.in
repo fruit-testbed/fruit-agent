@@ -30,7 +30,7 @@ handler = logging.handlers.SysLogHandler(address = '/dev/log')
 log.addHandler(handler)
 
 
-def get_device_file(device):
+def __host_device_file(device):
     device = path.abspath(path.join(path.sep, 'dev', device))
     for dev in __PUBLIC_DEVICES__:
         if device[:len(dev)] == dev:
@@ -131,7 +131,7 @@ def __remove_dangling_images():
 command: %s' % (cpe.returncode, cpe.cmd))
 
 
-def get_specs_signature(specs):
+def __specification_signature(specs):
     return hashlib.sha256(
             json.dumps(specs, sort_keys=True,separators=(',', ':'))
         ).hexdigest()
@@ -165,7 +165,7 @@ def deploy(name, specs):
     deployed = list_containers()
     name = name + '.fruit'
     docker_name = '/' + name
-    signature = get_specs_signature(specs)
+    signature = __specification_signature(specs)
     for container in deployed:
         if docker_name in container['Names']:
             if 'fruit.signature' in container['Labels']:
@@ -221,7 +221,7 @@ stopping the old one, error-code: %d, command: %s" % \
     # device
     if 'device' in specs and isinstance(specs['device'], list):
         for dev in specs['device']:
-            dev_file = get_device_file(dev)
+            dev_file = __host_device_file(dev)
             if dev_file is not None:
                 cmd += ['--device', dev_file]
     # name
