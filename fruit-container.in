@@ -140,26 +140,12 @@ def get_specs_signature(specs):
 '''
 Convert a relative container volume path to an absolute one.
 '''
-def __absolute_volume_path(p):
-    if not path.exists(__FRUIT_CONTAINER_DATA_VOLUME__):
-        try:
-            os.makedirs(__FRUIT_CONTAINER_DATA_VOLUME__)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and \
-                    path.isdir(__FRUIT_CONTAINER_DATA_VOLUME__):
-                pass
-            else:
-                raise exc
-    p = path.join(__FRUIT_CONTAINER_DATA_VOLUME__, p.lstrip(path.sep))
-    if not path.exists(p):
-        try:
-            os.makedirs(p)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and path.isdir(p):
-                pass
-            else:
-                raise exc
-    return p
+def __absolute_host_volume_path(p):
+    p = path.abspath(path.join(__FRUIT_CONTAINER_DATA_VOLUME__,
+                               p.lstrip(path.sep)))
+    n = len(__FRUIT_CONTAINER_DATA_VOLUME__)
+    if p[:n] == __FRUIT_CONTAINER_DATA_VOLUME__:
+        return p
 
 
 def __is_device_tree_loaded(dt):
@@ -226,8 +212,12 @@ stopping the old one, error-code: %d, command: %s" % \
         cmd = reduce(lambda x, y: x + ['-p', y], [cmd] + specs['port'])
     # volume
     if 'volume' in specs and isinstance(specs['volume'], list):
-        cmd = reduce(lambda x, y: x + ['-v', __absolute_volume_path(y)],
-                     [cmd] + specs['volume'])
+        for v in specs['volume']:
+            vs = v.split(':', 1)
+            vhost, vcontainer = (v, v) if len(vs) <= 1 else (vs[0], vs[1])
+            vhost = __absolute_host_volume_path(vhost)
+            if vhost is not None:
+                cmd += ['-v', '%s:%s' % (vhost, vcontainer)]
     # device
     if 'device' in specs and isinstance(specs['device'], list):
         for dev in specs['device']:
