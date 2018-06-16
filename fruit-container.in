@@ -21,7 +21,12 @@ __FRUIT_VALUE__ = '/usr/sbin/fruit-value'
 __FRUIT_CONTAINER_DATA_VOLUME__ = '/data/.container-data'
 
 # Any device file matches '__PUBLIC_DEVICES__*' can be bound to the container
-__PUBLIC_DEVICES__ = ['/dev/i2c', '/dev/spi', '/dev/ttyUSB']
+__PUBLIC_DEVICES__ = [
+    '/dev/i2c',
+    '/dev/spi',
+    '/dev/ttyUSB',
+    '/dev/bus/usb',
+    ]
 
 
 log = logging.getLogger('fruit-container')
