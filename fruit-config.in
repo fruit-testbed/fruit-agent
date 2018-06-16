@@ -336,8 +336,11 @@ setup_docker() {
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
 		[ "$(status docker)" = "started" ] && rc-service docker stop || true
 	else
-		[ $(rc-update show default | grep docker | wc -l) -eq 0 ] && rc-update add docker default
-		[ "$(status docker)" = "stopped" ] && rc-service docker start || true
+		if [ $(rc-update show default | grep docker | wc -l) -eq 0 ]; then
+      rc-update add docker default
+    elif [ "$(status docker)" = "stopped" ]; then
+      rc-service docker start
+    fi
 	fi
 	ret=$((ret + $?))
 
