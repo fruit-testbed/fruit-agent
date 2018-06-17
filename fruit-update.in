@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if [ "$(fruit-value /fruit/update)" = "false" ]; then
+	logger -st fruit "fruit-update is disabled (/fruit/update=false)"
+	exit 0
+fi
+
 active=$(mount | grep '/media/root-ro' | grep -v overlay | head -1 | cut -d' ' -f1)
 if [ "$active" = "/dev/mmcblk0p2" ]; then
 	non_active="/dev/mmcblk0p3"
