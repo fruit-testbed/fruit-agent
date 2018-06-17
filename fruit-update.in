@@ -96,6 +96,11 @@ apply_update() {
 	local m=$(($n - 500))
 	[ $m -gt 0 ] && sed -i "1,$m d" $apk_log_file
 
+	# fix *.apk-new files
+	for f in $(find $non_active_dir -name "*.apk-new"); do
+		mv -f $f ${f%.apk-new}
+	done
+
 	return $ret
 }
 
