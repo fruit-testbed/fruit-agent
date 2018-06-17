@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import json
@@ -11,7 +11,7 @@ import sys
 import argparse
 import syslog
 import traceback
-import httplib
+import http.client
 
 
 __DOCKER_SOCK__ = "/var/run/docker.sock"
@@ -306,7 +306,7 @@ def _p2p_update_updates():
 
 
 def _external_ip():
-    conn = httplib.HTTPSConnection("api.ipify.org")
+    conn = http.client.HTTPSConnection("api.ipify.org")
     conn.request("GET", "/")
     res = conn.getresponse()
     ip = None
@@ -328,7 +328,7 @@ def _location():
                     return loc
         except:
             pass
-    conn = httplib.HTTPConnection("api.ipstack.com")
+    conn = http.client.HTTPConnection("api.ipstack.com")
     conn.request("GET", "/%s?access_key=%s" % (ext_ip, "f2426e25c518a8fbd2ae2272d69edb8c"))
     res = conn.getresponse()
     loc = None
@@ -376,26 +376,26 @@ def send():
             syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s" % host)
         return exitcode
     except:
-        e1, e2, e3 = sys.exc_info()
         syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s -- %s" % (host, traceback.format_exc()))
-        raise e1, e2, e3
+        _, exc, _ = sys.exc_info()
+        raise exc
     finally:
         os.remove(fname)
 
 
 def print_usage():
-    print "--- Usage ---"
-    print " Send data to server: %s" % sys.argv[0]
-    print "Print data to stdout: %s -" % sys.argv[0]
+    print("--- Usage ---")
+    print(" Send data to server: %s" % sys.argv[0])
+    print("Print data to stdout: %s -" % sys.argv[0])
 
-    
+
 if __name__ == "__main__":
     syslog.openlog(ident="fruit-monitor")
     if len(sys.argv) >= 2:
         if sys.argv[1] == "-":
             json.dump(generate(), sys.stdout)
             sys.stdout.flush()
-            print ""
+            print("")
         else:
             print_usage()
     else:
