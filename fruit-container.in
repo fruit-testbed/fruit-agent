@@ -1,8 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
-from __future__ import print_function
 import subprocess as sp
 import json
 import sys
@@ -13,6 +12,7 @@ import logging.handlers
 import hashlib
 import errno
 import re
+from functools import reduce
 
 
 __DOCKER_SOCK__ = '/var/run/docker.sock'
@@ -42,7 +42,7 @@ Return a list of Docker containers.
 '''
 def list_containers():
     if not path.exists(__DOCKER_SOCK__):
-        raise RuntimeError, 'Docker daemon is not running.'
+        raise RuntimeError('Docker daemon is not running.')
     cmd = ['curl', '-fs', '--unix-socket', __DOCKER_SOCK__,
         'http:/%s/containers/json?all=true' % __DOCKER_API_VERSION__]
     return json.loads(sp.check_output(cmd))
@@ -83,14 +83,14 @@ error-code: %d, command: %s' % (cpe.returncode, cpe.cmd))
 
 def __delete_container(cid):
     if not path.exists(__DOCKER_SOCK__):
-        raise RuntimeError, 'Docker daemon is not running.'
+        raise RuntimeError('Docker daemon is not running.')
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'DELETE', 'http:/%s/containers/%s' % (__DOCKER_API_VERSION__, cid)])
 
 
 def __stop_container(cid):
     if not path.exists(__DOCKER_SOCK__):
-        raise RuntimeError, 'Docker daemon is not running.'
+        raise RuntimeError('Docker daemon is not running.')
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'POST', 'http:/%s/containers/%s/stop' % (__DOCKER_API_VERSION__, cid)])
 
@@ -266,7 +266,7 @@ def main():
             # there's something wrong with 'fruit-value /container'
             log.error('Failed getting container config, error-code: %d, \
 command: %s' % (cpe.returncode, cpe.cmd))
-            raise RuntimeError, 'ERROR: Failed to get container configs'
+            raise RuntimeError('ERROR: Failed to get container configs')
 
     if isinstance(containers, dict):
         for name in containers:
