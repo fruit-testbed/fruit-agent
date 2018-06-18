@@ -47,8 +47,12 @@ def _cpus():
     return data
 
 
+def _call(*args, **kwargs):
+    return str(sp.check_output(*args, **kwargs), 'utf-8')
+
+
 def _memory():
-    lines = sp.check_output(["free", "-b"]).splitlines()
+    lines = _call(["free", "-b"]).splitlines()
     _, total, used, free, _, buffers, _ = re.split(r"\s+", lines[1].strip())
     return {
         "total": total,
@@ -59,7 +63,7 @@ def _memory():
 
 
 def _volumes():
-    lines = sp.check_output(["df", "-T"]).strip().splitlines()
+    lines = _call(["df", "-T"]).strip().splitlines()
     lines.pop(0)
     included = ["/", "/media/root-rw", "/media/root-ro", "/media/data"]
     volumes = {}
@@ -77,7 +81,7 @@ def _volumes():
 
 
 def _os_service():
-    lines = sp.check_output(["rc-status", "-C"]).strip().splitlines()
+    lines = _call(["rc-status", "-C"]).strip().splitlines()
     lines.pop(0)
     services = {}
     for line in lines:
@@ -88,7 +92,7 @@ def _os_service():
 
 def _os_mode():
     try:
-        mode = sp.check_output(["fruit-value", "/mode"]).strip()
+        mode = _call(["fruit-value", "/mode"]).strip()
         if mode in ["master", "slave"]:
             return mode
     except sp.CalledProcessError:
@@ -98,7 +102,7 @@ def _os_mode():
 
 def _os_hostname():
     try:
-        return sp.check_output(["hostname"]).strip()
+        return _call(["hostname"]).strip()
     except:
         return None
 
@@ -110,7 +114,7 @@ def _os_master_address():
 
 def _pkg_version(name):
     try:
-        lines = sp.check_output(["apk", "version", name]).splitlines()
+        lines = _call(["apk", "version", name]).splitlines()
         return re.split(r"\s+", lines[1])[0].lstrip("%s-" % name)
     except:
         return None
@@ -118,21 +122,21 @@ def _pkg_version(name):
 
 def _os_uptime():
     try:
-        return sp.check_output(["uptime"]).strip()
+        return _call(["uptime"]).strip()
     except:
         return None
 
 
 def _os():
     return {
-        "version": sp.check_output(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
-        "built_timestamp": sp.check_output(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
+        "version": _call(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
+        "built_timestamp": _call(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
         "uptime": _os_uptime(),
         "fruit-agent": _pkg_version("fruit-agent"),
         "p2p-update": _pkg_version("p2p-update"),
         "mode": _os_mode(),
-        "timezone": sp.check_output(["date", "+%Z %z"]).strip(),
-        "local_datetime": sp.check_output(["date", "-R"]).strip(),
+        "timezone": _call(["date", "+%Z %z"]).strip(),
+        "local_datetime": _call(["date", "-R"]).strip(),
         "service": _os_service(),
         "master_address": _os_master_address(),
         "hostname": _os_hostname(),
@@ -152,7 +156,7 @@ def _docker_images():
         return None
     cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/images/json?all=true" % __DOCKER_API_VERSION__]
-    return json.loads(sp.check_output(cmd))
+    return json.loads(_call(cmd))
 
 
 def _docker_containers():
@@ -161,18 +165,18 @@ def _docker_containers():
         return None
     cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/containers/json?all=true" % __DOCKER_API_VERSION__]
-    return json.loads(sp.check_output(cmd))
+    return json.loads(_call(cmd))
 
 
 def _board():
-    serial = sp.check_output(["piserial"]).strip()
+    serial = _call(["piserial"]).strip()
 
     cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
-    line = sp.check_output(["grep", "Revision"], stdin=cat.stdout)
+    line = _call(["grep", "Revision"], stdin=cat.stdout)
     cat.wait()
     _, _, revision = re.split(r"\s+", line.strip())
 
-    model = sp.check_output(["cat", "/proc/device-tree/model"]).strip()
+    model = _call(["cat", "/proc/device-tree/model"]).strip()
     model = model[:-1]
 
     with open("/sys/class/thermal/thermal_zone0/temp", "r") as fin:
@@ -188,10 +192,10 @@ def _board():
 
 def _network():
     nets = {}
-    lines = sp.check_output(["ip", "-o", "link", "show"]).strip().splitlines()
+    lines = _call(["ip", "-o", "link", "show"]).strip().splitlines()
     for line in lines:
         _, iface, _, _, _, _, _, _, state, _ = line.split(" ", 9)
-        iface = iface.rstrip(":")
+        iface = iface.rstrip(":").split("@")[0]
         if iface != "lo":
             if state == "DOWN":
                 nets[iface] = None
@@ -200,6 +204,7 @@ def _network():
             grep = sp.Popen(["grep", " inet"], stdin=ip.stdout, stdout=sp.PIPE)
             inets, _ = grep.communicate()
             ip.wait()
+            inets = str(inets, 'utf-8')
             nets[iface] = []
             for inet in inets.strip().splitlines():
                 _, addr, _ = inet.lstrip().split(" ", 2)
@@ -209,7 +214,7 @@ def _network():
 
 def _api_key():
     try:
-        return sp.check_output(["fruit-value", "/api_key"]).strip()
+        return _call(["fruit-value", "/api_key"]).strip()
     except:
         return ""
 
@@ -238,7 +243,7 @@ def _fruit_json():
 def piid():
     piid = None
     try:
-        piid = sp.check_output(["piserial"]).strip()
+        piid = _call(["piserial"]).strip()
         if piid != "":
             piid = "pi%s" % piid
     except:
@@ -260,7 +265,7 @@ def _p2p_update_config():
     url = "http://%s/config" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
     try:
-        return json.loads(sp.check_output(cmd))
+        return json.loads(_call(cmd))
     except sp.CalledProcessError:
         return None
 
@@ -271,14 +276,14 @@ def _p2p_update_overlay():
     url = "http://%s/overlay" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
     try:
-        stat = json.loads(sp.check_output(cmd))
+        stat = json.loads(_call(cmd))
     except sp.CalledProcessError:
         stat = None
     if isinstance(stat, dict):
         url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
         cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
         try:
-            stat['peers'] = json.loads(sp.check_output(cmd))
+            stat['peers'] = json.loads(_call(cmd))
         except sp.CalledProcessError:
             pass
     return stat
@@ -290,7 +295,7 @@ def _p2p_update_updates():
     url = "http://%s/update" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
     try:
-        uuids = json.loads(sp.check_output(cmd))
+        uuids = json.loads(_call(cmd))
     except sp.CalledProcessError:
         return None
     if isinstance(uuids, list):
@@ -299,48 +304,46 @@ def _p2p_update_updates():
             url2 = "%s/%s" % (url, uuid)
             cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url2]
             try:
-                updates[uuid] = json.loads(sp.check_output(cmd))
+                updates[uuid] = json.loads(_call(cmd))
             except sp.CalledProcessError:
                 pass
         return updates
 
 
-def _external_ip():
-    conn = http.client.HTTPSConnection("api.ipify.org")
-    conn.request("GET", "/")
+def _http_get(host, path="/", secure=False):
+    if secure:
+        conn = http.client.HTTPSConnection(host)
+    else:
+        conn = http.client.HTTPConnection(host)
+    conn.request("GET", path)
     res = conn.getresponse()
-    ip = None
-    if res.status == 200:
-        ip = res.read()
+    statusbody = res.status, str(res.read(), 'utf-8')
     conn.close()
-    return ip
+    return statusbody
 
 
 def _location():
-    ext_ip = _external_ip()
-    if ext_ip is None:
+    status, ext_ip = _http_get("api.ipify.org", secure=True)
+    if status != 200:
         return None
     if path.exists(__LOCATION_CACHE__):
         try:
             with open(__LOCATION_CACHE__, 'r') as f:
-                loc = json.load(f)
-                if 'ip' in loc and loc['ip'] == ext_ip:
-                    return loc
+                location = json.load(f)
+                if 'ip' in location and location['ip'] == ext_ip:
+                    return location
         except:
             pass
-    conn = http.client.HTTPConnection("api.ipstack.com")
-    conn.request("GET", "/%s?access_key=%s" % (ext_ip, "f2426e25c518a8fbd2ae2272d69edb8c"))
-    res = conn.getresponse()
-    loc = None
-    if res.status == 200:
+    p = "/%s?access_key=%s" % (ext_ip, "f2426e25c518a8fbd2ae2272d69edb8c")
+    status, body = _http_get("api.ipstack.com", path=p)
+    if status == 200:
         try:
-            loc = json.loads(res.read())
+            location = json.loads(body)
             with open(__LOCATION_CACHE__, 'w') as f:
-                json.dump(loc, f)
+                f.write(body)
+            return location
         except:
             pass
-    conn.close()
-    return loc
 
 
 def generate():
@@ -394,8 +397,8 @@ if __name__ == "__main__":
     if len(sys.argv) >= 2:
         if sys.argv[1] == "-":
             json.dump(generate(), sys.stdout)
+            sys.stdout.write("\n")
             sys.stdout.flush()
-            print("")
         else:
             print_usage()
     else:
