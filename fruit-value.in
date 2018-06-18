@@ -72,8 +72,8 @@ if __name__ == "__main__":
     value = find(to_path(sys.argv[1]))
     if value is None:
         sys.exit(2)
-    elif isinstance(value, str) or isinstance(value, unicode):
-        sys.stdout.write(str(value))
+    elif isinstance(value, str):
+        sys.stdout.write(str(value, 'utf-8'))
     else:
         json.dump(value, sys.stdout)
     sys.stdout.flush()
