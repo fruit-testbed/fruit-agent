@@ -35,6 +35,10 @@ handler = logging.handlers.SysLogHandler(address = '/dev/log')
 log.addHandler(handler)
 
 
+def _call(*args, **kwargs):
+    return str(sp.check_output(*args, **kwargs), 'utf-8')
+
+
 def __host_device_file(device):
     device = path.abspath(path.join(path.sep, 'dev', device))
     for dev in __PUBLIC_DEVICES__:
@@ -50,7 +54,7 @@ def list_containers():
         raise RuntimeError('Docker daemon is not running.')
     cmd = ['curl', '-fs', '--unix-socket', __DOCKER_SOCK__,
         'http:/%s/containers/json?all=true' % __DOCKER_API_VERSION__]
-    return json.loads(sp.check_output(cmd))
+    return json.loads(_call(cmd))
 
 
 '''
@@ -139,6 +143,7 @@ command: %s' % (cpe.returncode, cpe.cmd))
 def __specification_signature(specs):
     return hashlib.sha256(
             json.dumps(specs, sort_keys=True,separators=(',', ':'))
+                .encode('utf-8')
         ).hexdigest()
 
 
@@ -154,7 +159,7 @@ def __absolute_host_volume_path(p):
 
 
 def __is_device_tree_loaded(dt):
-    for line in sp.check_output(['/opt/vc/bin/dtoverlay', '-l']).split('\n'):
+    for line in _call(['/opt/vc/bin/dtoverlay', '-l']).split('\n'):
         if line[:9] == 'Overlays ':
             continue
         parts = re.split(r"\s+", line)
@@ -257,7 +262,7 @@ def main():
         pass
 
     try:
-        val = sp.check_output([__FRUIT_VALUE__, '/container']).strip()
+        val = _call([__FRUIT_VALUE__, '/container']).strip()
         if len(val) < 2:
             # no container defined in fruit.json
             containers = {}
