@@ -194,7 +194,7 @@ setup_network_interface() {
 	local wpa_supp=$3
 	local addr=$(fruit-value "\[\"network\",\"$iface\"\]")
 	local wpa_pass=$(fruit-value '\["wpa","password"\]')
-	
+
 	if [ "$wpa_pass" = "" ]; then
 		wpa_supp="no"
 	fi
@@ -466,6 +466,12 @@ do_bootafter() {
 }
 
 setup_p2p_update() {
+	which p2p-update 1>/dev/null 2>/dev/null
+	if [ $? -ne 0 ]; then
+		logger -st fruit "p2p-update is not available"
+		return 0
+	fi
+
 	local sumfile=/var/run/p2p-update.config.md5
 	local config=$(fruit-value /p2p-update)
 	local configfile=/etc/p2p-update/config.json
@@ -577,7 +583,7 @@ disable_nat() {
 	[ $ret -eq 0 ] \
 		&& rm -f /var/run/fruit.nat \
 		|| false
-	
+
 	ret=$?
 	[ $ret -eq 0 ] \
 		&& logger -st fruit "disabled NAT on interface:$iface network-address:$netaddr"
@@ -620,7 +626,7 @@ enable_nat() {
 		&& iptables -A FORWARD -i ${iface} ! -o ${iface} -j ACCEPT 1>/dev/null 2>/dev/null \
 		|| true
 	ret=$((ret + $?))
-	
+
 	iptables -t nat -C POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null
 	[ $? -ne 0 ] \
 		&& iptables -t nat -A POSTROUTING -s ${netaddr} ! -o ${iface} -j MASQUERADE 1>/dev/null 2>/dev/null \
