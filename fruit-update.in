@@ -40,17 +40,11 @@ mark_clean() {
 
 mount_non_active() {
 	mkdir -p $non_active_dir && \
-		mount $non_active $non_active_dir && \
-		mount -t proc non $non_active_dir/proc && \
-		mount -o bind /sys $non_active_dir/sys && \
-		mount -o bind /dev $non_active_dir/dev
+		mount $non_active $non_active_dir
 	return $?
 }
 
 umount_non_active() {
-	umount -f $non_active_dir/dev 1>/dev/null 2>/dev/null
-	umount -f $non_active_dir/sys 1>/dev/null 2>/dev/null
-	umount -f $non_active_dir/proc 1>/dev/null 2>/dev/null
 	[ $(mount | grep " on $non_active_dir " | wc -l) -ne 0 ] && umount -f $non_active_dir || true
 	return $?
 }
@@ -64,7 +58,10 @@ apply_update() {
 	mkdir -p $tmp/root $tmp/work $update \
 		&& mount -t overlay \
 			-o lowerdir=$non_active_dir,upperdir=$tmp/root,workdir=$tmp/work \
-			overlayfs $update
+			overlayfs $update \
+		&& mount -t proc non $update/proc \
+		&& mount -o bind /dev $update/dev \
+		&& mount -o bind /sys $update/sys
 
 	ret=$((ret + $?))
 
@@ -77,6 +74,9 @@ apply_update() {
 
 	ret=$((ret + $?))
 	sync
+	umount -f $update/sys
+	umount -f $update/dev
+	umount -f $update/proc
 	umount -f $update
 	ret=$((ret + $?))
 
