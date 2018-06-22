@@ -4,7 +4,7 @@
 # the SSD.
 
 fruit-cli monitor \
-  | sh JSON.sh \
+  | sh $(dirname $0)/../JSON.sh \
   | grep '"volumes","/media/root-ro","size"' \
   | sed 's/","volumes","\/media\/root-ro","size"\]//g' \
   | sed 's/\["//g' \
