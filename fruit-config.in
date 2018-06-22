@@ -360,7 +360,7 @@ setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
 	*/1   *  *  *  *  fruit-monitor
 	*/5   *  *  *  *  timeout -t 1200 fruit-config cron
-	*/30  *  *  *  *  fruit-update cron
+	*/30  *  *  *  *  fruit-update cron; sleep 5; fruit-update cron
 	59    4  *  *  *  [ -f /run/fruit-update.reboot ] && reboot || true
 	*/3   *  *  *  *  fruit-container
 	EOL
