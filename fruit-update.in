@@ -21,9 +21,14 @@ flag_file="$flag_dir/$(echo "$non_active" | sed 's/\//./g').dirty"
 # invoke fruit-config to update fruit.json
 fruit-config 1>/dev/null 2>/dev/null
 
+# Reset ${apk_log_file} by moving existing logs to ${apk_log_file}.old.
+# Remove older logs by keeping the last 500 lines.
 apk_log_file=/var/log/fruit-update-apk.log
-[ -f $apk_log_file ] && mv -f $apk_log_file $apk_log_file.old
-echo "started $(date)" > $apk_log_file
+[ -f $apk_log_file ] && cat $apk_log_file >> $apk_log_file.old
+n=$(wc -l $apk_log_file.old | cut -d' ' -f1)
+m=$(($n - 500))
+[ $m -gt 0 ] && sed -i "1,$m d" $apk_log_file.old
+echo "=== Start $(date) ===" > $apk_log_file
 
 logger -st fruit "Updating $non_active"
 
@@ -214,5 +219,7 @@ else
 	umount_volumes
 	logger -st fruit "ERROR: Failed updating $non_active"
 fi
+
+echo "=== End $(date) ===" >> $apk_log_file
 
 exit $ret
