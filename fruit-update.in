@@ -73,6 +73,25 @@ umount_volumes() {
 	return $?
 }
 
+update_initramfs() {
+	local machine=$(uname -r | cut -d'-' -f3)
+
+	if [ "$(grep ' Upgrading fruit-initramfs (' $apk_log_file)" != "" ] \
+		|| [ "$(grep ' Upgrading fruit-rpi2-linux (' $apk_log_file)" != "" ] \
+		|| [ "$(grep ' Upgrading fruit-rpi-linux (' $apk_log_file)" != "" ]
+	then
+		echo "Updating initramfs..." >> $apk_log_file \
+			&& chroot $update_dir /sbin/mkinitfs -o "/boot/initramfs-$machine" \
+				$(cat "$update_dir/usr/share/kernel/$machine/kernel.release") \
+				1>>$apk_log_file 2>>$apk_log_file \
+			&& chroot $update_dir /usr/bin/mkimage -A arm -T ramdisk -C none \
+				-n initramfs -d "/boot/initramfs-$machine" /boot/initramfs \
+				1>>$apk_log_file 2>>$apk_log_file \
+			&& rm -f "$update_dir/boot/initramfs-$machine"
+	fi
+	return $?
+}
+
 apply_update() {
 	local ret=0
 
@@ -80,7 +99,8 @@ apply_update() {
 		# ignore any error when updating the packages list
 		apk -q --root $update_dir update 1>>$apk_log_file 2>>$apk_log_file
 		# upgrade packages
-		apk --root $update_dir --purge --wait 1200 upgrade 1>>$apk_log_file 2>>$apk_log_file
+		apk --root $update_dir --purge --wait 1200 upgrade 1>>$apk_log_file 2>>$apk_log_file \
+			&& update_initramfs
 	fi
 	ret=$((ret + $?))
 
