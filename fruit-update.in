@@ -25,9 +25,11 @@ fruit-config 1>/dev/null 2>/dev/null
 # Remove older logs by keeping the last 500 lines.
 apk_log_file=/var/log/fruit-update-apk.log
 [ -f $apk_log_file ] && cat $apk_log_file >> $apk_log_file.old
-n=$(wc -l $apk_log_file.old | cut -d' ' -f1)
-m=$(($n - 500))
-[ $m -gt 0 ] && sed -i "1,$m d" $apk_log_file.old
+if [ -f $apk_log_file.old ]; then
+	n=$(wc -l $apk_log_file.old | cut -d' ' -f1)
+	m=$(($n - 500))
+	[ $m -gt 0 ] && sed -i "1,$m d" $apk_log_file.old
+fi
 echo "=== Start $(date) ===" > $apk_log_file
 
 logger -st fruit "Updating $non_active"
