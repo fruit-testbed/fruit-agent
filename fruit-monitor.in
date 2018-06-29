@@ -171,16 +171,13 @@ def _docker_containers():
 def _board():
     serial = _call(["piserial"]).strip()
 
-    cat = sp.Popen(["cat", "/proc/cpuinfo"], stdout=sp.PIPE)
-    line = _call(["grep", "Revision"], stdin=cat.stdout)
-    cat.wait()
-    _, _, revision = re.split(r"\s+", line.strip())
+    revs = re.split(r"\s+", _call(["hexdump", "/sys/firmware/devicetree/base/system/linux,revision"]))
+    revision = revs[1][0:2] + revs[2][2:4] + revs[2][0:2]
 
-    model = _call(["cat", "/proc/device-tree/model"]).strip()
+    model = open("/sys/firmware/devicetree/base/model").read().strip()
     model = model[:-1]
 
-    with open("/sys/class/thermal/thermal_zone0/temp", "r") as fin:
-        tempC = float(fin.read()) / 1000.
+    tempC = float(open("/sys/class/thermal/thermal_zone0/temp").read()) / 1000.
 
     return {
         "serial": serial,
