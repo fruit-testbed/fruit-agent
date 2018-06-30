@@ -140,7 +140,6 @@ def _os_kernel():
 def _os():
     return {
         "version": _call(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
-        "built_timestamp": _call(["grep", "BUILT_TIMESTAMP", "/etc/os-release"]).split("=")[1].strip(),
         "uptime": _os_uptime(),
         "fruit-agent": _pkg_version("fruit-agent"),
         "p2p-update": _pkg_version("p2p-update"),
