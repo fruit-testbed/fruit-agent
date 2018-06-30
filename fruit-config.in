@@ -476,7 +476,7 @@ do_bootafter() {
 setup_p2p_update() {
 	which p2p-update 1>/dev/null 2>/dev/null
 	if [ $? -ne 0 ]; then
-		logger -st fruit "p2p-update is not available"
+		logger -t fruit "p2p-update is not available"
 		return 0
 	fi
 
