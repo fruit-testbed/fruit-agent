@@ -130,6 +130,13 @@ def _os_uptime():
         return None
 
 
+def _os_kernel():
+    return {
+        "version": _call(["uname", "-r"]).strip(),
+        "architecture": _call(["uname", "-m"]).strip(),
+        }
+
+
 def _os():
     return {
         "version": _call(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
@@ -143,6 +150,7 @@ def _os():
         "service": _os_service(),
         "master_address": _os_master_address(),
         "hostname": _os_hostname(),
+        "kernel": _os_kernel(),
     }
 
 
