@@ -386,6 +386,7 @@ setup_avahi() {
 	sed -i "s/^#host-name=.*$/host-name=$(hostname)/" /etc/avahi/avahi-daemon.conf
 	sed -i "s/^#domain-name=.*$/domain-name=local/" /etc/avahi/avahi-daemon.conf
 	sed -i "s/^#enable-wide-area=.*$/enable-wide-area=no/" /etc/avahi/avahi-daemon.conf
+	sed -i "s/^#deny-interfaces=.*$/deny-interfaces=docker0,tun0/" /etc/avahi/avahi-daemon.conf
 	return 0
 }
 
