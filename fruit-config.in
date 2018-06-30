@@ -350,7 +350,7 @@ setup_docker() {
 }
 
 setup_avahi_service() {
-	[ "$(status avahi-daemon)" != "started" ] \
+	[ -f /etc/init.d/avahi-daemon ] && [ "$(status avahi-daemon)" != "started" ] \
 		&& rc-service avahi-daemon restart \
 		|| true
 	return $?
