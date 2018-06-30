@@ -349,6 +349,13 @@ setup_docker() {
 	return $ret
 }
 
+setup_avahi_service() {
+	[ "$(status avahi-daemon)" != "started" ] \
+		&& rc-service avahi-daemon restart \
+		|| true
+	return $?
+}
+
 setup_sshd() {
 	local config=/etc/ssh/sshd_config
 	sed -i 's/^#PermitRootLogin prohibit-password/PermitRootLogin prohibit-password/g' ${config} \
@@ -689,6 +696,7 @@ case "$(rc-status -r)" in
 		setup_docker
 		setup_openvpn
 		setup_leds
+		setup_avahi_service
 		;;
 	*)
 		true
