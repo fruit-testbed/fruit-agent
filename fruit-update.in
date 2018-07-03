@@ -116,14 +116,14 @@ update_apk_world() {
 		if [ $? -eq 0 ]; then
 			cat "$tmp1" | grep -v "^$x$" > "$tmp2"
 			cp "$tmp2" "$tmp1"
-			echo "-$x" >> $apk_log_file
+			echo "removed $x" >> $apk_log_file
 		fi
 	done
 	for x in $(fruit-value /apk/world/present); do
 		cat "$tmp1" | grep "^$x$" > /dev/null
 		if [ $? -ne 0 ]; then
 			echo "$x" >> "$tmp1"
-			echo "+$x" >> $apk_log_file
+			echo "added $x" >> $apk_log_file
 		fi
 	done
 	cp -f "$tmp1" "$update_dir/etc/apk/world"
@@ -141,14 +141,34 @@ apply_update() {
 	update_apk_world
 	ret=$((ret + $?))
 
+	local repos_file=$(mktemp)
+	if [ "$(fruit-value /apk/repositories/0)" = "" ]; then
+		cp "$update_dir/etc/apk/repositories" $repos_file
+	else
+		local i=0
+		while true; do
+			repo=$(fruit-value /apk/repositories/$i)
+			[ "$repo" = "" ] && break
+			echo "$repo" >> $repos_file
+			i=$((i + 1))
+		done
+	fi
+	echo "--- repositories ---" >>$apk_log_file
+	cat $repos_file >>$apk_log_file
+
 	if [ $? -eq 0 ]; then
 		# ignore any error when updating the packages list
-		apk -q --root $update_dir update 1>>$apk_log_file 2>>$apk_log_file
+		apk -q --root $update_dir --repositories-file $repos_file \
+			update 1>>$apk_log_file 2>>$apk_log_file
 		# upgrade packages
-		apk --root $update_dir --purge --wait 1200 upgrade 1>>$apk_log_file 2>>$apk_log_file \
+		apk --root $update_dir --purge --wait 1200 \
+				--repositories-file $repos_file \
+				upgrade 1>>$apk_log_file 2>>$apk_log_file \
 			&& update_initramfs
 	fi
 	ret=$((ret + $?))
+
+	rm -f $repos_file
 
 	sync
 	umount_update_dir
