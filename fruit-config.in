@@ -23,7 +23,7 @@ download_resource() {
 	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
 	local api_key=$(fruit-value '\["api_key"\]')
 	[ "$api_key" = "" ] \
-		&& logger -st fruit "ERROR: 'api_key' is not defined in fruit.json" \
+		&& logger -st fruit "Standalone mode ('api_key' is undefined in fruit.json)" \
 		&& return 1
 
 	local ret=0
