@@ -654,13 +654,10 @@ enable_nat() {
 
 ##### main #####
 
-lockfile="/run/$(basename $0).lock"
-[ -f lockfile ] && [ "$(find ${lockfile} -mmin -30 2>/dev/null)" = "" ] \
-		&& logger -st fruit "ERROR: Lock file ${lockfile} exists" \
-		&& exit 1
-
-rm -f ${lockfile}
-touch ${lockfile}
+lockfile -r 0 /var/run/fruit-config.lock || {
+	logger -st fruit "Another fruit-config is already running"
+	exit 1
+}
 
 # random sleep between 0-299 seconds
 [ "$1" = "cron" ] && sleep $(shuf -i 0-299 -n 1)
@@ -703,6 +700,6 @@ case "$(rc-status -r)" in
 		;;
 esac
 
-rm -f ${lockfile}
+rm -f /var/run/fruit-config.lock
 
 exit 0
