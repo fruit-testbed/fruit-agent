@@ -142,8 +142,6 @@ def _os():
         "version": _call(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
         "uptime": _os_uptime(),
         "fruit-agent": _pkg_version("fruit-agent"),
-        "p2p-update": _pkg_version("p2p-update"),
-        "mode": _os_mode(),
         "timezone": _call(["date", "+%Z %z"]).strip(),
         "local_datetime": _call(["date", "-R"]).strip(),
         "service": _os_service(),
@@ -364,7 +362,6 @@ def generate():
         "cpus": _cpus(),
         "memory": _memory(),
         "fruit.json": _fruit_json(),
-        "p2p-update": _p2p_update(),
         "location": _location(),
     }
 
