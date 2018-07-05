@@ -654,7 +654,7 @@ enable_nat() {
 
 ##### main #####
 
-lockfile -r 0 /var/run/fruit-config.lock || {
+lockfile -r 0 /.fruit-config.lock || {
 	logger -st fruit "Another fruit-config is already running"
 	exit 1
 }
@@ -700,6 +700,6 @@ case "$(rc-status -r)" in
 		;;
 esac
 
-rm -f /var/run/fruit-config.lock
+rm -f /.fruit-config.lock
 
 exit 0
