@@ -185,7 +185,7 @@ def _board():
     model = open("/sys/firmware/devicetree/base/model").read().strip()
     model = model[:-1]
 
-    tempC = float(open("/sys/class/thermal/thermal_zone0/temp").read()) / 1000.
+    tempC = None
 
     return {
         "serial": serial,
