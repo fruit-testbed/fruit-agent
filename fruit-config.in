@@ -366,7 +366,7 @@ setup_sshd() {
 setup_cron() {
 	cat >> /etc/crontabs/root <<-EOL
 	*/1   *  *  *  *  fruit-monitor
-	*/5   *  *  *  *  timeout -t 1200 fruit-config cron
+	*/5   *  *  *  *  sleep $(shuf -i 0-299 -n 1); timeout -t 1200 fruit-config cron
 	*/30  *  *  *  *  fruit-update cron; sleep 5; fruit-update cron
 	59    4  *  *  *  [ -f /run/fruit-update.reboot ] && reboot || true
 	*/3   *  *  *  *  fruit-container
@@ -658,9 +658,6 @@ lockfile -r 0 /.fruit-config.lock || {
 	logger -st fruit "Another fruit-config is already running"
 	exit 1
 }
-
-# random sleep between 0-299 seconds
-[ "$1" = "cron" ] && sleep $(shuf -i 0-299 -n 1)
 
 case "$(rc-status -r)" in
 	boot)
