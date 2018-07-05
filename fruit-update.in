@@ -204,7 +204,7 @@ recover_non_active() {
 	return $?
 }
 
-lockfile -r 0 /var/run/fruit-update.lock || {
+lockfile -r 0 /.fruit-update.lock || {
 	logger -st fruit "Another fruit-update is already running"
 	exit 1
 }
@@ -250,6 +250,6 @@ fi
 
 echo "=== End $(date) ===" >> $apk_log_file
 
-rm -f /var/run/fruit-update.lock
+rm -f /.fruit-update.lock
 
 exit $ret
