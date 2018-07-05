@@ -88,7 +88,8 @@ update_initramfs() {
 
 	if [ "$(grep ' Upgrading fruit-initramfs (' $apk_log_file)" != "" ] \
 		|| [ "$(grep ' Upgrading fruit-rpi2-linux (' $apk_log_file)" != "" ] \
-		|| [ "$(grep ' Upgrading fruit-rpi-linux (' $apk_log_file)" != "" ]
+		|| [ "$(grep ' Upgrading fruit-rpi-linux (' $apk_log_file)" != "" ] \
+		|| [ "$(grep ' Upgrading fruit-u-boot (' $apk_log_file)" != "" ]
 	then
 		echo "Updating initramfs..." >> $apk_log_file \
 			&& chroot $update_dir /sbin/mkinitfs -o "/boot/initramfs-$machine" \
