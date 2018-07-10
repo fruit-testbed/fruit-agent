@@ -64,10 +64,13 @@ def _read_file(filepath, onError=None):
 
 
 def _call(*args, **kwargs):
-    output = str(sp.check_output(*args, **kwargs), 'utf-8')
-    if output[-1] == "\0":
-        output = output[:-1]
-    return output
+    try:
+        output = str(sp.check_output(*args, **kwargs), "utf-8")
+        if output[-1] == "\0":
+            output = output[:-1]
+        return output
+    except:
+        return None if "onError" not in kwargs else kwargs["onError"]
 
 
 def _memory():
