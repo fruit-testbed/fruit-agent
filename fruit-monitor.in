@@ -193,7 +193,9 @@ def _board():
     if model is not None:
         model = model.strip()[:-1]
 
-    tempC = None
+    tempC = _read_file("/sys/class/thermal/thermal_zone0/temp")
+    if tempC is not None:
+        tempC = float(tempC) / 1000.
 
     return {
         "serial": serial,
