@@ -47,7 +47,7 @@ def _cpus():
 
     throttled = _call(["/opt/vc/bin/vcgencmd", "get_throttled"])
     if throttled is not None:
-        throttled = throttled.lstrip("throttled=").strip()
+        throttled = throttled.lstrip("throttled=")
 
     return {
         "stat": stat,
@@ -66,7 +66,7 @@ def _read_file(filepath, onError=None):
 def _call(*args, **kwargs):
     try:
         output = str(sp.check_output(*args, **kwargs), "utf-8")
-        if output[-1] == "\0":
+        if output[-1] in ["\n", "\0"]:
             output = output[:-1]
         return output
     except:
@@ -74,7 +74,10 @@ def _call(*args, **kwargs):
 
 
 def _memory():
-    lines = _call(["free", "-b"]).splitlines()
+    lines = _call(["free", "-b"])
+    if lines is None:
+        return None
+    lines = lines.splitlines()
     _, total, used, free, _, buffers, _ = re.split(r"\s+", lines[1].strip())
     return {
         "total": total,
@@ -85,7 +88,10 @@ def _memory():
 
 
 def _volumes():
-    lines = _call(["df", "-T"]).strip().splitlines()
+    lines = _call(["df", "-T"])
+    if lines is None:
+        return None
+    lines = lines.strip().splitlines()
     lines.pop(0)
     included = ["/", "/media/root-rw", "/media/root-ro", "/media/data"]
     volumes = {}
@@ -103,7 +109,10 @@ def _volumes():
 
 
 def _os_service():
-    lines = _call(["rc-status", "-C"]).strip().splitlines()
+    lines = _call(["rc-status", "-C"])
+    if lines is None:
+        return None
+    lines = lines.strip().splitlines()
     lines.pop(0)
     services = {}
     for line in lines:
@@ -112,60 +121,37 @@ def _os_service():
     return services
 
 
-def _os_mode():
-    try:
-        mode = _call(["fruit-value", "/mode"]).strip()
-        if mode in ["master", "slave"]:
-            return mode
-    except sp.CalledProcessError:
-        pass
-    return "standalone"
-
-
-def _os_hostname():
-    try:
-        return _call(["hostname"]).strip()
-    except:
-        return None
-
-
-def _os_master_address():
-    # TODO: implement this when creating OS image for master node
-    return None
-
-
 def _pkg_version(name):
-    try:
-        lines = _call(["apk", "version", name]).splitlines()
-        return re.split(r"\s+", lines[1])[0].lstrip("%s-" % name)
-    except:
+    lines = _call(["apk", "version", name])
+    if lines is None:
         return None
-
-
-def _os_uptime():
-    try:
-        return _call(["uptime"]).strip()
-    except:
-        return None
+    lines = lines.splitlines()
+    return re.split(r"\s+", lines[1])[0].lstrip("%s-" % name)
 
 
 def _os_kernel():
     return {
-        "version": _call(["uname", "-r"]).strip(),
-        "architecture": _call(["uname", "-m"]).strip(),
+        "version": _call(["uname", "-r"]),
+        "architecture": _call(["uname", "-m"]),
         }
+
+
+def _os_version():
+    version = _call(["grep", "VERSION", "/etc/os-release"])
+    if version is None:
+        return None
+    return version.split("=")[1].strip()
 
 
 def _os():
     return {
-        "version": _call(["grep", "VERSION", "/etc/os-release"]).split("=")[1].strip(),
-        "uptime": _os_uptime(),
+        "version": _os_version(),
+        "uptime": _call(["uptime"]),
         "fruit-agent": _pkg_version("fruit-agent"),
-        "timezone": _call(["date", "+%Z %z"]).strip(),
-        "local_datetime": _call(["date", "-R"]).strip(),
+        "timezone": _call(["date", "+%Z %z"]),
+        "local_datetime": _call(["date", "-R"]),
         "service": _os_service(),
-        "master_address": _os_master_address(),
-        "hostname": _os_hostname(),
+        "hostname": _call(["hostname"]),
         "kernel": _os_kernel(),
     }
 
@@ -196,13 +182,16 @@ def _docker_containers():
 
 
 def _board():
-    serial = _call(["piserial"]).strip()
+    serial = _call(["piserial"])
 
-    revs = re.split(r"\s+", _call(["hexdump", "/sys/firmware/devicetree/base/system/linux,revision"]))
-    revision = revs[1][0:2] + revs[2][2:4] + revs[2][0:2]
+    revision = _call(["hexdump", "/sys/firmware/devicetree/base/system/linux,revision"])
+    if revision is not None:
+        revision = re.split(r"\s+", revision)
+        revision = revision[1][0:2] + revision[2][2:4] + revision[2][0:2]
 
-    model = open("/sys/firmware/devicetree/base/model").read().strip()
-    model = model[:-1]
+    model = _read_file("/sys/firmware/devicetree/base/model")
+    if model is not None:
+        model = model.strip()[:-1]
 
     tempC = None
 
@@ -215,8 +204,11 @@ def _board():
 
 
 def _network():
+    lines = _call(["ip", "-o", "link", "show"])
+    if lines is None:
+        return None
     nets = {}
-    lines = _call(["ip", "-o", "link", "show"]).strip().splitlines()
+    lines = lines.strip().splitlines()
     for line in lines:
         _, iface, _, _, _, _, _, _, state, _ = line.split(" ", 9)
         iface = iface.rstrip(":").split("@")[0]
@@ -237,10 +229,10 @@ def _network():
 
 
 def _api_key():
-    try:
-        return _call(["fruit-value", "/api_key"]).strip()
-    except:
+    apiKey = _call(["fruit-value", "/api_key"])
+    if apiKey is None:
         return ""
+    return apiKey
 
 
 def _fruit_json():
@@ -265,13 +257,9 @@ def _fruit_json():
 
 
 def piid():
-    piid = None
-    try:
-        piid = _call(["piserial"]).strip()
-        if piid != "":
-            piid = "pi%s" % piid
-    except:
-        pass
+    piid = _call(["piserial"])
+    if piid is not None:
+        piid = "pi%s" % piid
     return piid
 
 
