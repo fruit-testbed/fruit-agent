@@ -24,7 +24,7 @@ __LOCATION_CACHE__ = "/data/.location"
 
 
 def _cpus():
-    data = {}
+    stat = {}
     with open("/proc/stat") as fin:
         for line in fin:
             if line[:3] != "cpu":
@@ -38,13 +38,29 @@ def _cpus():
             idle = idle + iowait
             non_idle = user + nice + system + irq + softirq + steal
             total = idle + non_idle
-            data[label] = {
+            stat[label] = {
                 "usage": 100 * non_idle / total,
                 "idle": 100 * idle / total,
                 "user": 100 * user / total,
                 "system": 100 * system / total,
             }
-    return data
+
+    throttled = _call(["/opt/vc/bin/vcgencmd", "get_throttled"])
+    if throttled is not None:
+        throttled = throttled.lstrip("throttled=").strip()
+
+    return {
+        "stat": stat,
+        "scaling": _read_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip(),
+        "throttled": throttled,
+        }
+
+
+def _read_file(filepath, onError=None):
+    try:
+        return open(filepath).read()
+    except:
+        return onError
 
 
 def _call(*args, **kwargs):
