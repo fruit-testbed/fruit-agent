@@ -186,7 +186,7 @@ def _docker_containers():
 
 
 def _piserial():
-    return _read_file("/sys/firmware/devicetree/base/serial-number", "").lstrip("0")
+    return _read_file("/sys/firmware/devicetree/base/serial-number", "").lstrip("0").replace('\0','')
 
 
 def _board():
