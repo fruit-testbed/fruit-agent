@@ -113,10 +113,13 @@ def _os_service():
     lines = _call(["rc-status", "-C"])
     if lines is None:
         return None
-    lines = lines.strip().splitlines()
-    lines.pop(0)
+    lines = lines.splitlines()
     services = {}
     for line in lines:
+        if not line.startswith(' ') or line.startswith(' * '):
+            # Skip " * Caching service dependencies ... [ ok ]"
+            #  and "Runlevel: default" lines.
+            continue
         name, _, status, _ = re.split(r"\s+", line.strip())
         services[name] = status
     return services
