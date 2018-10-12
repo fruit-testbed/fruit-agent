@@ -9,14 +9,14 @@ piserial() {
     cat /sys/firmware/devicetree/base/serial-number | sed 's/^0*//'
 }
 
-fruit-value() {
+fruit_value() {
     local v=$(jq -r "$1" "${config_local}" 2>/dev/null)
     if [ "$v" = "null" ]; then v=$(jq -r "$1" "${config_server}" 2>/dev/null); fi
     if [ "$v" = "null" ]; then v="$2"; fi
     echo "$v"
 }
 
-fruit-value-json() {
+fruit_value_json() {
     local v=$(jq "$1" "${config_local}" 2>/dev/null)
     if [ "$v" = "null" ]; then v=$(jq "$1" "${config_server}" 2>/dev/null); fi
     if [ "$v" = "null" ]; then v="$2"; fi
@@ -37,8 +37,8 @@ download_resource() {
 	# $2: target output file
 
 	local name="pi$(piserial)"
-        local url="$(fruit-value .api_url "${fruit_api_url}")/node/${name}/$1"
-	local api_key=$(fruit-value .api_key)
+        local url="$(fruit_value .api_url "${fruit_api_url}")/node/${name}/$1"
+	local api_key=$(fruit_value .api_key)
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "Standalone mode ('api_key' is undefined in fruit.json)" \
 		&& return 1
@@ -85,7 +85,7 @@ status() {
 setup_openvpn() {
 	local config="/run/openvpn.tar.gz"
 
-	if [ "$(fruit-value .vpn false)" != "true" ]; then
+	if [ "$(fruit_value .vpn false)" != "true" ]; then
 		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop || true
 		for filepath in /etc/openvpn/*; do
 			ext="${filepath##*.}"
@@ -112,9 +112,9 @@ setup_openvpn() {
 }
 
 setup_user_root() {
-	hash=$(fruit-value '."root-password"' "")
+	hash=$(fruit_value '."root-password"' "")
         if [ "$hash" = "" ]; then
-                hash=$(fruit-value .user.root.password "")
+                hash=$(fruit_value .user.root.password "")
         fi
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
@@ -124,7 +124,7 @@ setup_user_root() {
 }
 
 setup_hostname() {
-	hostname=$(fruit-value .name "")
+	hostname=$(fruit_value .name "")
 	if [ "$hostname" = "" ]; then
 		hostname="pi$(piserial)"
 	fi
@@ -135,14 +135,14 @@ setup_hostname() {
 }
 
 setup_timezone() {
-	zone=$(fruit-value .timezone "UTC" | awk '{print toupper($0)}')
+	zone=$(fruit_value .timezone "UTC" | awk '{print toupper($0)}')
 	[ ! -f /etc/zoneinfo/${zone} ] \
 		&& setup-timezone -z $zone \
 		&& logger -st fruit "Set timezone to $zone"
 }
 
 setup_keyboard() {
-	local keyboard=$(fruit-value .keyboard "gb")
+	local keyboard=$(fruit_value .keyboard "gb")
 	local keymap=$(echo "$keyboard" | cut -d' ' -f1)
 	local variant=$(echo "$keyboard" | cut -d' ' -f2)
 	[ -f /etc/keymap/${variant}.bmap.gz ] && return 0
@@ -151,7 +151,7 @@ setup_keyboard() {
 }
 
 setup_ntp_boot() {
-	for s in "pool.ntp.org time.apple.com $(fruit-value .ntp "")"; do
+	for s in "pool.ntp.org time.apple.com $(fruit_value .ntp "")"; do
 		echo "server ${s}" >> /etc/ntp.conf
 	done
 	echo 'NTPD_OPTS="-N -l"' > /etc/conf.d/ntpd
@@ -159,7 +159,7 @@ setup_ntp_boot() {
 
 setup_ntp_default() {
 	local restart=0
-	for s in pool.ntp.org time.apple.com $(fruit-value .ntp ""); do
+	for s in pool.ntp.org time.apple.com $(fruit_value .ntp ""); do
 		grep "^server ${s}$" /etc/ntp.conf 1>/dev/null 2>/dev/null
 		[ $? -ne 0 ] && echo "server ${s}" >> /etc/ntp.conf && restart=1
 	done
@@ -168,11 +168,11 @@ setup_ntp_default() {
 }
 
 setup_wpa_supplicant() {
-	local ssid=$(fruit-value .wpa.ssid "")
+	local ssid=$(fruit_value .wpa.ssid "")
 	[ "$ssid" = "" ] && return 1
 
-	local username=$(fruit-value .wpa.username "")
-	local password=$(fruit-value .wpa.password "")
+	local username=$(fruit_value .wpa.username "")
+	local password=$(fruit_value .wpa.password "")
 	[ "$username" = "" ] && [ "$password" = "" ] && return 2
 
 	if [ "$username" != "" ]; then
@@ -202,8 +202,8 @@ setup_network_interface() {
 	local outfile=$1
 	local iface=$2
 	local wpa_supp=$3
-	local addr=$(fruit-value ".network.${iface}" "")
-	local wpa_pass=$(fruit-value .wpa.password "")
+	local addr=$(fruit_value ".network.${iface}" "")
+	local wpa_pass=$(fruit_value .wpa.password "")
 
 	if [ "$wpa_pass" = "" ]; then
 		wpa_supp="no"
@@ -340,7 +340,7 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	if [ "$(fruit-value .docker true)" = "false" ]; then
+	if [ "$(fruit_value .docker true)" = "false" ]; then
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
 		[ "$(status docker)" = "started" ] && rc-service docker stop || true
 	else
@@ -434,13 +434,13 @@ setup_builtin_led() {
 
 setup_leds() {
 	[ -e /sys/class/leds/led0 ] \
-		&& setup_builtin_led "/sys/class/leds/led0" $(fruit-value .leds.green heartbeat)
+		&& setup_builtin_led "/sys/class/leds/led0" $(fruit_value .leds.green heartbeat)
 	[ -e /sys/class/leds/led1 ] \
-		&& setup_builtin_led "/sys/class/leds/led1" $(fruit-value .leds.red mmc0)
+		&& setup_builtin_led "/sys/class/leds/led1" $(fruit_value .leds.red mmc0)
 }
 
 setup_kernel_modules() {
-	modules=$(fruit-value .modules "")
+	modules=$(fruit_value .modules "")
 	hash=$(echo -n "$modules" | md5sum | awk '{print $1}')
 	if [ ! -e /run/fruit.modules.$hash ]; then
 		for mod in $modules; do
@@ -454,7 +454,7 @@ setup_kernel_modules() {
 }
 
 setup_dtparam() {
-	params=$(fruit-value .dtparam "")
+	params=$(fruit_value .dtparam "")
 	hash=$(echo -n "$params" | md5sum | awk '{print $1}')
 	if [ ! -e /run/fruit.dtparam.$hash ]; then
 		for param in $params; do
@@ -471,7 +471,7 @@ do_bootafter() {
 	local now=$(date +%s)
 	local up=$(cat /proc/uptime | cut -d' ' -f1 | cut -d'.' -f1)
 	local boottime=$(($now - $up))
-	local bootafter=$(fruit-value '."boot-after"' "")
+	local bootafter=$(fruit_value '."boot-after"' "")
 	if [ "$bootafter" != "" ] && [ "$bootafter" -lt "$now" ]; then
 		if [ $boottime -lt $bootafter ]; then
 			logger -st fruit "rebooting since boot-time=$boottime < boot-after=$bootafter"
@@ -489,7 +489,7 @@ setup_p2p_update() {
 	fi
 
 	local sumfile=/var/run/p2p-update.config.md5
-	local config=$(fruit-value-json .p2p-update "")
+	local config=$(fruit_value_json .p2p-update "")
 	local configfile=/etc/p2p-update/config.json
 
 	if [ "$config" != "" ]; then
@@ -509,7 +509,7 @@ setup_p2p_update() {
 
 setup_dnsmasq() {
 	local pid=$(pidof dnsmasq)
-	local iface=$(fruit-value .dnsmasq.interface "")
+	local iface=$(fruit_value .dnsmasq.interface "")
 	local addr="10.2.0.1/24"
 	local dhcprange="10.2.0.10,10.2.0.254,24"
 
@@ -558,7 +558,7 @@ setup_dnsmasq() {
 }
 
 setup_nat() {
-	local iface=$(fruit-value .nat "")
+	local iface=$(fruit_value .nat "")
 
 	if [ "$iface" != "" ]; then
 		enable_nat "$iface"
