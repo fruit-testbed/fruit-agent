@@ -6,6 +6,10 @@ src_config=/media/mmcblk0p1/fruit.json
 config_local=/run/fruit.json@local
 config_server=/run/fruit.json@server
 
+piserial() {
+    cat /sys/firmware/devicetree/base/serial-number | sed 's/^0*//'
+}
+
 copy_config_local_to_run() {
 	if [ -e ${src_config} ]; then
 		cp -f ${src_config} ${config_local}

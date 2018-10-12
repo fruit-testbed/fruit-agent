@@ -51,7 +51,7 @@ def _cpus():
 
     return {
         "stat": stat,
-        "scaling": _read_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip(),
+        "scaling": _read_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "").strip(),
         "throttled": throttled,
         }
 
@@ -181,8 +181,12 @@ def _docker_containers():
     return json.loads(_call(cmd))
 
 
+def _piserial():
+    return _read_file("/sys/firmware/devicetree/base/serial-number", "").lstrip("0")
+
+
 def _board():
-    serial = _call(["piserial"])
+    serial = _piserial()
 
     revision = _call(["hexdump", "/sys/firmware/devicetree/base/system/linux,revision"])
     if revision is not None:
@@ -259,9 +263,9 @@ def _fruit_json():
 
 
 def piid():
-    piid = _call(["piserial"])
-    if piid is not None:
-        piid = "pi%s" % piid
+    piid = _piserial()
+    if piid:
+        piid = "pi" + piid
     return piid
 
 

@@ -1,3 +1,0 @@
-#!/bin/sh
-
-cat /sys/firmware/devicetree/base/serial-number | sed 's/^0*//'
