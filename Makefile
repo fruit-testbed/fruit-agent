@@ -22,6 +22,7 @@ install:
 	ln -sf /etc/init.d/fruit-default $(DESTDIR)/etc/runlevels/default/fruit-default
 
 	install -m755 -d $(DESTDIR)/boot
+	rm -f $(DESTDIR)/boot/overlays
 	ln -sf /media/mmcblk0p1/overlays $(DESTDIR)/boot/overlays # required by dtparam
 
 	install -m755 -d $(DESTDIR)/etc/local.d/ # rc.local scripts
