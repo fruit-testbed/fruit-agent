@@ -377,23 +377,25 @@ def generate():
 
 
 def send():
-    host = "fruit-testbed.org"
+    api_url = fruit.agent.config.get('/api_url', "https://fruit-testbed.org/api")
     fd, fname = tempfile.mkstemp(text=True)
     try:
         with os.fdopen(fd, 'w') as fout:
             json.dump(generate(), fout)
-        url = "https://%s/api/monitor/%s" % (host, piid())
+        url = "%s/monitor/%s" % (api_url, piid())
         header1 = "Content-Type: application/json"
         header2 = "X-API-Key: %s" % (fruit.agent.config.get('/api_key', ""),)
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
                                   "-H", header2, "-d", "@%s" % (fname,), url])
         if exitcode == 0:
-            syslog.syslog("Sent monitoring data to %s" % host)
+            syslog.syslog("Sent monitoring data to %s" % (api_url,))
         else:
-            syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s" % host)
+            syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s" % (api_url,))
         return exitcode
     except:
-        syslog.syslog(syslog.LOG_ERR, "Failed to send monitoring data to %s -- %s" % (host, traceback.format_exc()))
+        syslog.syslog(syslog.LOG_ERR,
+                      "Failed to send monitoring data to %s -- %s" % \
+                      (api_url, traceback.format_exc()))
         _, exc, _ = sys.exc_info()
         raise exc
     finally:
