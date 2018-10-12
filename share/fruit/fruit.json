@@ -1,5 +1,5 @@
 {
-	"api_key": "",
+	"public-key": "",
 	"network": {
 		"eth0": "dhcp",
 		"wlan0": "dhcp"

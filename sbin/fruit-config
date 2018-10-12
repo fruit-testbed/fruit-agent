@@ -32,20 +32,31 @@ copy_config_local_to_run() {
 	chmod 0400 ${config_local}
 }
 
+generate_api_token() {
+    echo | PYTHONPATH="$(dirname "$0")/../share/fruit/python:$PYTHONPATH" python3 \
+                     -m fruit.auth.token_tool \
+                     /etc/ssh/ssh_host_ed25519_key
+}
+
 download_resource() {
 	# $1: resource name to be download
 	# $2: target output file
 
-	local name="pi$(piserial)"
-        local url="$(fruit_value .api_url "${fruit_api_url}")/node/${name}/$1"
-	local api_key=$(fruit_value .api_key)
-	[ "$api_key" = "" ] \
+        local user_id=$(fruit_value '."public-key"' "")
+        if [ "$user_id" = "" ]; then
+            logger -st fruit "Owner's public-key not defined in fruit.json, falling back to legacy api_key"
+            user_id=$(fruit_value .api_key "")
+	    [ "$user_id" = "" ] \
 		&& logger -st fruit "Standalone mode ('api_key' is undefined in fruit.json)" \
 		&& return 1
+        fi
+
+        local url="$(fruit_value .api_url "${fruit_api_url}")/resource/${user_id}/$1"
 
 	local ret=0
+        local token=$(generate_api_token)
 	local tmpfile=$(mktemp)
-	curl --connect-timeout 10 -fsL -o "$tmpfile" -H "X-API-Key: $api_key" ${url}
+	curl --connect-timeout 10 -fsL -o "$tmpfile" -H "X-API-Key: $token" ${url}
 	if [ $? -ne 0 ]; then
 		logger -st fruit "ERROR: Failed to download $url"
 		ret=2
