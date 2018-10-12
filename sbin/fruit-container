@@ -4,7 +4,7 @@
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__),'../share/fruit-agent'))
+sys.path.append(os.path.join(os.path.dirname(__file__),'../share/fruit/python'))
 import fruit.agent.config
 import subprocess as sp
 import json
