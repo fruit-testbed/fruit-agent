@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__),'../share/fruit-agent'))
+import fruit.agent.config
 import subprocess as sp
 import json
-import sys
-from os import path
-import os
 import logging
 import logging.handlers
 import hashlib
@@ -17,7 +18,6 @@ from functools import reduce
 
 __DOCKER_SOCK__ = '/var/run/docker.sock'
 __DOCKER_API_VERSION__ = 'v1.35'
-__FRUIT_VALUE__ = '/usr/sbin/fruit-value'
 __FRUIT_CONTAINER_DATA_VOLUME__ = '/data/.container-data'
 
 # Any device file matches '__PUBLIC_DEVICES__*' can be bound to the container
@@ -40,7 +40,7 @@ def _call(*args, **kwargs):
 
 
 def __host_device_file(device):
-    device = path.abspath(path.join(path.sep, 'dev', device))
+    device = os.path.abspath(os.path.join(os.path.sep, 'dev', device))
     for dev in __PUBLIC_DEVICES__:
         if device[:len(dev)] == dev:
             return device
@@ -50,7 +50,7 @@ def __host_device_file(device):
 Return a list of Docker containers.
 '''
 def list_containers():
-    if not path.exists(__DOCKER_SOCK__):
+    if not os.path.exists(__DOCKER_SOCK__):
         raise RuntimeError('Docker daemon is not running.')
     cmd = ['curl', '-fs', '--unix-socket', __DOCKER_SOCK__,
         'http:/%s/containers/json?all=true' % __DOCKER_API_VERSION__]
@@ -73,7 +73,7 @@ Remove fruit containers unless its name is in 'not_removed' list.
 '''
 def __remove_fruit_containers(not_removed):
     def __filter(c):
-        for (name, ext) in map(lambda n: path.splitext(n), c['Names']):
+        for (name, ext) in map(lambda n: os.path.splitext(n), c['Names']):
             if ext == '.fruit' and name.lstrip('/') not in not_removed:
                 return True
         return False
@@ -91,14 +91,14 @@ error-code: %d, command: %s' % (cpe.returncode, cpe.cmd))
 
 
 def __delete_container(cid):
-    if not path.exists(__DOCKER_SOCK__):
+    if not os.path.exists(__DOCKER_SOCK__):
         raise RuntimeError('Docker daemon is not running.')
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'DELETE', 'http:/%s/containers/%s' % (__DOCKER_API_VERSION__, cid)])
 
 
 def __stop_container(cid):
-    if not path.exists(__DOCKER_SOCK__):
+    if not os.path.exists(__DOCKER_SOCK__):
         raise RuntimeError('Docker daemon is not running.')
     return sp.call(['curl', '-fs', '--unix-socket', __DOCKER_SOCK__, '-X',
         'POST', 'http:/%s/containers/%s/stop' % (__DOCKER_API_VERSION__, cid)])
@@ -110,7 +110,7 @@ Remove non-fruit containers, that are containers whose names without extension
 '''
 def __remove_non_fruit_exited_containers():
     def __filter(c):
-        return '.fruit' not in map(lambda n: path.splitext(n)[1], c['Names']) \
+        return '.fruit' not in map(lambda n: os.path.splitext(n)[1], c['Names']) \
                 and c['State'] == 'exited'
 
     for container in filter(__filter, list_containers()):
@@ -151,8 +151,7 @@ def __specification_signature(specs):
 Convert a relative container volume path to an absolute one.
 '''
 def __absolute_host_volume_path(p):
-    p = path.abspath(path.join(__FRUIT_CONTAINER_DATA_VOLUME__,
-                               p.lstrip(path.sep)))
+    p = os.path.abspath(os.path.join(__FRUIT_CONTAINER_DATA_VOLUME__, p.lstrip(os.path.sep)))
     n = len(__FRUIT_CONTAINER_DATA_VOLUME__)
     if p[:n] == __FRUIT_CONTAINER_DATA_VOLUME__:
         return p
@@ -253,31 +252,13 @@ command: %s" % (name, cpe.returncode, cpe.cmd))
 def main():
     # check if there's another instance of fruit-container is running
     try:
-        with open(os.devnull, 'w') as FNULL:
-            sp.check_call(['pidof', 'fruit-container'], stdout=FNULL,
-                          stderr=FNULL)
-            log.info('Exiting because another fruit-container is running.')
-            return
+        sp.check_call(['pidof', 'fruit-container'], stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        log.info('Exiting because another fruit-container is running.')
+        return
     except:
         pass
 
-    try:
-        val = _call([__FRUIT_VALUE__, '/container']).strip()
-        if len(val) < 2:
-            # no container defined in fruit.json
-            containers = {}
-        else:
-            containers = json.loads(val)
-    except sp.CalledProcessError as cpe:
-        if cpe.returncode == 2:
-            # no container defined in fruit.json
-            containers = {}
-        else:
-            # there's something wrong with 'fruit-value /container'
-            log.error('Failed getting container config, error-code: %d, \
-command: %s' % (cpe.returncode, cpe.cmd))
-            raise RuntimeError('ERROR: Failed to get container configs')
-
+    containers = fruit.agent.config.get('/container', {})
     if isinstance(containers, dict):
         for name in containers:
             deploy(name, containers[name])

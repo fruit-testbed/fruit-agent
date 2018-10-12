@@ -1,13 +1,26 @@
 #!/bin/sh
 
-server_address="fruit-testbed.org"
-server_api_prefix="/api"
+fruit_api_url="https://fruit-testbed.org/api"
 src_config=/media/mmcblk0p1/fruit.json
 config_local=/run/fruit.json@local
 config_server=/run/fruit.json@server
 
 piserial() {
     cat /sys/firmware/devicetree/base/serial-number | sed 's/^0*//'
+}
+
+fruit-value() {
+    local v=$(jq -r "$1" "${config_local}" 2>/dev/null)
+    if [ "$v" = "null" ]; then v=$(jq -r "$1" "${config_server}" 2>/dev/null); fi
+    if [ "$v" = "null" ]; then v="$2"; fi
+    echo "$v"
+}
+
+fruit-value-json() {
+    local v=$(jq "$1" "${config_local}" 2>/dev/null)
+    if [ "$v" = "null" ]; then v=$(jq "$1" "${config_server}" 2>/dev/null); fi
+    if [ "$v" = "null" ]; then v="$2"; fi
+    echo "$v"
 }
 
 copy_config_local_to_run() {
@@ -24,8 +37,8 @@ download_resource() {
 	# $2: target output file
 
 	local name="pi$(piserial)"
-	local url="https://${server_address}${server_api_prefix}/node/${name}/$1"
-	local api_key=$(fruit-value '\["api_key"\]')
+        local url="$(fruit-value .api_url "${fruit_api_url}")/node/${name}/$1"
+	local api_key=$(fruit-value .api_key)
 	[ "$api_key" = "" ] \
 		&& logger -st fruit "Standalone mode ('api_key' is undefined in fruit.json)" \
 		&& return 1
@@ -70,9 +83,9 @@ status() {
 }
 
 setup_openvpn() {
-	local enabled=$(fruit-value '\["vpn"\]')
 	local config="/run/openvpn.tar.gz"
-	if [ "$enabled" != "true" ]; then
+
+	if [ "$(fruit-value .vpn false)" != "true" ]; then
 		[ "$(status openvpn)" != "stopped" ] && rc-service openvpn stop || true
 		for filepath in /etc/openvpn/*; do
 			ext="${filepath##*.}"
@@ -99,10 +112,10 @@ setup_openvpn() {
 }
 
 setup_user_root() {
-	hash=$(fruit-value '\["root-password"\]')
-  if [ "$hash" = "" ]; then
-    hash=$(fruit-value '\["user","root","password"\]')
-  fi
+	hash=$(fruit-value '."root-password"' "")
+        if [ "$hash" = "" ]; then
+                hash=$(fruit-value .user.root.password "")
+        fi
 	if [ "$hash" != "" ]; then
 		sed -i '/^root/ d' /etc/shadow && \
 			echo "root:$hash:1:0:99999:7:::" >> /etc/shadow && \
@@ -111,7 +124,7 @@ setup_user_root() {
 }
 
 setup_hostname() {
-	hostname=$(fruit-value '\["name"\]')
+	hostname=$(fruit-value .name "")
 	if [ "$hostname" = "" ]; then
 		hostname="pi$(piserial)"
 	fi
@@ -122,21 +135,14 @@ setup_hostname() {
 }
 
 setup_timezone() {
-	zone=$(fruit-value '\["timezone"\]')
-	if [ "$zone" = "" ]; then
-		zone="GB"
-	fi
-	zone=$(echo "$zone" | awk '{print toupper($0)}')
+	zone=$(fruit-value .timezone "UTC" | awk '{print toupper($0)}')
 	[ ! -f /etc/zoneinfo/${zone} ] \
 		&& setup-timezone -z $zone \
 		&& logger -st fruit "Set timezone to $zone"
 }
 
 setup_keyboard() {
-	local keyboard=$(fruit-value '\["keyboard"\]')
-	if [ "$keyboard" = "" ]; then
-		keyboard="gb"
-	fi
+	local keyboard=$(fruit-value .keyboard "gb")
 	local keymap=$(echo "$keyboard" | cut -d' ' -f1)
 	local variant=$(echo "$keyboard" | cut -d' ' -f2)
 	[ -f /etc/keymap/${variant}.bmap.gz ] && return 0
@@ -145,7 +151,7 @@ setup_keyboard() {
 }
 
 setup_ntp_boot() {
-	for s in "pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]')"; do
+	for s in "pool.ntp.org time.apple.com $(fruit-value .ntp "")"; do
 		echo "server ${s}" >> /etc/ntp.conf
 	done
 	echo 'NTPD_OPTS="-N -l"' > /etc/conf.d/ntpd
@@ -153,7 +159,7 @@ setup_ntp_boot() {
 
 setup_ntp_default() {
 	local restart=0
-	for s in pool.ntp.org time.apple.com $(fruit-value '\["ntp"\]'); do
+	for s in pool.ntp.org time.apple.com $(fruit-value .ntp ""); do
 		grep "^server ${s}$" /etc/ntp.conf 1>/dev/null 2>/dev/null
 		[ $? -ne 0 ] && echo "server ${s}" >> /etc/ntp.conf && restart=1
 	done
@@ -162,11 +168,11 @@ setup_ntp_default() {
 }
 
 setup_wpa_supplicant() {
-	local ssid=$(fruit-value '\["wpa","ssid"\]')
+	local ssid=$(fruit-value .wpa.ssid "")
 	[ "$ssid" = "" ] && return 1
 
-	local username=$(fruit-value '\["wpa","username"\]')
-	local password=$(fruit-value '\["wpa","password"\]')
+	local username=$(fruit-value .wpa.username "")
+	local password=$(fruit-value .wpa.password "")
 	[ "$username" = "" ] && [ "$password" = "" ] && return 2
 
 	if [ "$username" != "" ]; then
@@ -183,7 +189,7 @@ network={
 }
 EOL
 	else
-		wpa_passphrase $ssid $password > /etc/wpa_supplicant/wpa_supplicant.conf
+		wpa_passphrase "$ssid" "$password" > /etc/wpa_supplicant/wpa_supplicant.conf
 	fi
 	ret=$?
 	logger -st fruit "Set up wpa_supplicant SSID=$ssid"
@@ -196,8 +202,8 @@ setup_network_interface() {
 	local outfile=$1
 	local iface=$2
 	local wpa_supp=$3
-	local addr=$(fruit-value "\[\"network\",\"$iface\"\]")
-	local wpa_pass=$(fruit-value '\["wpa","password"\]')
+	local addr=$(fruit-value ".network.${iface}" "")
+	local wpa_pass=$(fruit-value .wpa.password "")
 
 	if [ "$wpa_pass" = "" ]; then
 		wpa_supp="no"
@@ -209,10 +215,10 @@ setup_network_interface() {
 			auto $iface
 			iface $iface inet dhcp
 		EOL
-		[ "$wpa_supp" = yes ] && cat >> $outfile <<EOL
-	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
-	post-down killall -q wpa_supplicant
-EOL
+		[ "$wpa_supp" = yes ] && cat >> $outfile <<-EOL
+			    pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
+			    post-down killall -q wpa_supplicant
+		EOL
 		logger -st fruit "Set $iface to $addr"
 	elif [ "$addr" != "" ]; then
 		ipaddr=$(sipcalc "$addr" | grep 'Host address\t' | awk '{print $4}')
@@ -223,19 +229,19 @@ EOL
 			netmask=$(sipcalc "$addr" | grep 'Network mask\t' | awk '{print $4}')
 			network=$(sipcalc "$addr" | grep 'Network address\t' | awk '{print $4}')
 			broadcast=$(sipcalc "$addr" | grep 'Broadcast address\t' | awk '{print $4}')
-			cat >> $outfile <<EOL
+			cat >> $outfile <<-EOL
 
-auto $iface
-iface $iface inet static
-	address $ipaddr
-	netmask $netmask
-	network $network
-	broadcast $broadcast
-EOL
-			[ "$wpa_supp" = yes ] && cat >> $outfile <<EOL
-	pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
-	post-down killall -q wpa_supplicant
-EOL
+				auto $iface
+				iface $iface inet static
+				    address $ipaddr
+				    netmask $netmask
+				    network $network
+				    broadcast $broadcast
+			EOL
+			[ "$wpa_supp" = yes ] && cat >> $outfile <<-EOL
+				    pre-up wpa_supplicant -B -c/etc/wpa_supplicant/wpa_supplicant.conf -i${iface}
+				    post-down killall -q wpa_supplicant
+			EOL
 			logger -st fruit "Set $iface to $addr"
 		fi
 	fi
@@ -249,7 +255,6 @@ setup_network() {
 	cat > $outfile <<-EOL
 		auto lo
 		iface lo inet loopback
-
 	EOL
 
 	for iface in ${ifaces}; do
@@ -311,11 +316,10 @@ setup_data_volume() {
 }
 
 setup_docker() {
-	local enabled=$(fruit-value '\["docker"\]')
 	local datadir=/media/data
 	local ret=0
 
-	if [ ! -L /var/lib/docker ] && [ "$(status docker)" == "stopped" ]; then
+	if [ ! -L /var/lib/docker ] && [ "$(status docker)" = "stopped" ]; then
 		mkdir -p /media/data/.docker \
 			&& rm -rf /var/lib/docker \
 			&& ln -sf /media/data/.docker /var/lib/docker \
@@ -336,7 +340,7 @@ setup_docker() {
 		ret=$((ret + $?))
 	fi
 
-	if [ "$enabled" = "false" ]; then
+	if [ "$(fruit-value .docker true)" = "false" ]; then
 		[ $(rc-update show default | grep docker | wc -l) -ne 0 ] && rc-update del docker default
 		[ "$(status docker)" = "started" ] && rc-service docker stop || true
 	else
@@ -430,13 +434,13 @@ setup_builtin_led() {
 
 setup_leds() {
 	[ -e /sys/class/leds/led0 ] \
-		&& setup_builtin_led "/sys/class/leds/led0" $(fruit-value '\["leds","green"\]')
+		&& setup_builtin_led "/sys/class/leds/led0" $(fruit-value .leds.green heartbeat)
 	[ -e /sys/class/leds/led1 ] \
-		&& setup_builtin_led "/sys/class/leds/led1" $(fruit-value '\["leds","red"\]')
+		&& setup_builtin_led "/sys/class/leds/led1" $(fruit-value .leds.red mmc0)
 }
 
 setup_kernel_modules() {
-	modules=$(fruit-value '\["modules"\]')
+	modules=$(fruit-value .modules "")
 	hash=$(echo -n "$modules" | md5sum | awk '{print $1}')
 	if [ ! -e /run/fruit.modules.$hash ]; then
 		for mod in $modules; do
@@ -450,7 +454,7 @@ setup_kernel_modules() {
 }
 
 setup_dtparam() {
-	params=$(fruit-value '\["dtparam"\]')
+	params=$(fruit-value .dtparam "")
 	hash=$(echo -n "$params" | md5sum | awk '{print $1}')
 	if [ ! -e /run/fruit.dtparam.$hash ]; then
 		for param in $params; do
@@ -467,7 +471,7 @@ do_bootafter() {
 	local now=$(date +%s)
 	local up=$(cat /proc/uptime | cut -d' ' -f1 | cut -d'.' -f1)
 	local boottime=$(($now - $up))
-	local bootafter=$(fruit-value boot-after)
+	local bootafter=$(fruit-value '."boot-after"' "")
 	if [ "$bootafter" != "" ] && [ "$bootafter" -lt "$now" ]; then
 		if [ $boottime -lt $bootafter ]; then
 			logger -st fruit "rebooting since boot-time=$boottime < boot-after=$bootafter"
@@ -485,7 +489,7 @@ setup_p2p_update() {
 	fi
 
 	local sumfile=/var/run/p2p-update.config.md5
-	local config=$(fruit-value /p2p-update)
+	local config=$(fruit-value-json .p2p-update "")
 	local configfile=/etc/p2p-update/config.json
 
 	if [ "$config" != "" ]; then
@@ -505,7 +509,7 @@ setup_p2p_update() {
 
 setup_dnsmasq() {
 	local pid=$(pidof dnsmasq)
-	local iface=$(fruit-value /dnsmasq/interface)
+	local iface=$(fruit-value .dnsmasq.interface "")
 	local addr="10.2.0.1/24"
 	local dhcprange="10.2.0.10,10.2.0.254,24"
 
@@ -554,7 +558,7 @@ setup_dnsmasq() {
 }
 
 setup_nat() {
-	local iface=$(fruit-value /nat)
+	local iface=$(fruit-value .nat "")
 
 	if [ "$iface" != "" ]; then
 		enable_nat "$iface"

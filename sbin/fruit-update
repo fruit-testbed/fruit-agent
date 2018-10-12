@@ -1,6 +1,13 @@
 #!/bin/sh
 
-if [ "$(fruit-value /fruit/update)" = "false" ]; then
+fruit-value() {
+    local v=$(jq -r "$1" "${config_local}" 2>/dev/null)
+    if [ "$v" = "null" ]; then v=$(jq -r "$1" "${config_server}" 2>/dev/null); fi
+    if [ "$v" = "null" ]; then v="$2"; fi
+    echo "$v"
+}
+
+if [ "$(fruit-value .fruit.update true)" = "false" ]; then
 	logger -st fruit "fruit-update is disabled (/fruit/update=false)"
 	exit 0
 fi
@@ -112,7 +119,7 @@ update_apk_world() {
 
 	echo "---Updating $update_dir/etc/apk/world---" >> $apk_log_file
 	cp -f "$update_dir/etc/apk/world" "$tmp1"
-	for x in $(fruit-value /apk/world/absent); do
+	for x in $(fruit-value .apk.world.absent ""); do
 		cat "$tmp1" | grep "^$x$" > /dev/null
 		if [ $? -eq 0 ]; then
 			cat "$tmp1" | grep -v "^$x$" > "$tmp2"
@@ -120,7 +127,7 @@ update_apk_world() {
 			echo "removed $x" >> $apk_log_file
 		fi
 	done
-	for x in $(fruit-value /apk/world/present); do
+	for x in $(fruit-value .apk.world.present ""); do
 		cat "$tmp1" | grep "^$x$" > /dev/null
 		if [ $? -ne 0 ]; then
 			echo "$x" >> "$tmp1"
@@ -143,12 +150,12 @@ apply_update() {
 	ret=$((ret + $?))
 
 	local repos_file=$(mktemp)
-	if [ "$(fruit-value /apk/repositories/0)" = "" ]; then
+	if [ "$(fruit-value ".apk.repositories[0]" "")" = "" ]; then
 		cp "$update_dir/etc/apk/repositories" $repos_file
 	else
 		local i=0
 		while true; do
-			repo=$(fruit-value /apk/repositories/$i)
+			repo=$(fruit-value ".apk.repositories[$i]" "")
 			[ "$repo" = "" ] && break
 			echo "$repo" >> $repos_file
 			i=$((i + 1))
@@ -215,7 +222,7 @@ umount_volumes
 	exit 1
 
 if [ -f $flag_file ]; then
-	enabled_recovery=$(fruit-value '\["root_partition_recovery"\]')
+	enabled_recovery=$(fruit-value .root_partition_recovery true)
 	if [ "$enabled_recovery" != "false" ]; then
 		logger -st fruit "WARNING: $non_active is dirty"
 		# do recovery since non-active is dirty

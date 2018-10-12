@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__),'../share/fruit-agent'))
+import fruit.agent.config
 import json
 import subprocess as sp
 import re
-import os.path as path
 import tempfile
-import os
-import sys
 import argparse
 import syslog
 import traceback
@@ -165,7 +166,7 @@ def _docker():
 
 def _docker_images():
     docker_sock = "/var/run/docker.sock"
-    if not path.exists(docker_sock):
+    if not os.path.exists(docker_sock):
         return None
     cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/images/json?all=true" % __DOCKER_API_VERSION__]
@@ -174,7 +175,7 @@ def _docker_images():
 
 def _docker_containers():
     docker_sock = "/var/run/docker.sock"
-    if not path.exists(docker_sock):
+    if not os.path.exists(docker_sock):
         return None
     cmd = ["curl", "-fs", "--unix-socket", docker_sock,
            "http:/%s/containers/json?all=true" % __DOCKER_API_VERSION__]
@@ -234,18 +235,11 @@ def _network():
     return nets
 
 
-def _api_key():
-    apiKey = _call(["fruit-value", "/api_key"])
-    if apiKey is None:
-        return ""
-    return apiKey
-
-
 def _fruit_json():
     local_config = "/run/fruit.json@local"
     server_config = "/run/fruit.json@server"
     secrets = ["api_key", "wpa"]
-    if not path.exists(local_config):
+    if not os.path.exists(local_config):
         local = None
     else:
         with open(local_config, "r") as fin:
@@ -253,7 +247,7 @@ def _fruit_json():
             for key in secrets:
                 local.pop(key, None)
 
-    if not path.exists(server_config):
+    if not os.path.exists(server_config):
         server = None
     else:
         with open(server_config, "r") as fin:
@@ -278,7 +272,7 @@ def _p2p_update():
 
 
 def _p2p_update_config():
-    if not path.exists(__P2P_UPDATE_SOCK__):
+    if not os.path.exists(__P2P_UPDATE_SOCK__):
         return None
     url = "http://%s/config" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
@@ -289,7 +283,7 @@ def _p2p_update_config():
 
 
 def _p2p_update_overlay():
-    if not path.exists(__P2P_UPDATE_SOCK__):
+    if not os.path.exists(__P2P_UPDATE_SOCK__):
         return None
     url = "http://%s/overlay" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
@@ -308,7 +302,7 @@ def _p2p_update_overlay():
 
 
 def _p2p_update_updates():
-    if not path.exists(__P2P_UPDATE_SOCK__):
+    if not os.path.exists(__P2P_UPDATE_SOCK__):
         return None
     url = "http://%s/update" % __P2P_UPDATE_VERSION__
     cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
@@ -344,7 +338,7 @@ def _location():
     status, ext_ip = _http_get("api.ipify.org", secure=True)
     if status != 200:
         return None
-    if path.exists(__LOCATION_CACHE__):
+    if os.path.exists(__LOCATION_CACHE__):
         try:
             with open(__LOCATION_CACHE__, 'r') as f:
                 location = json.load(f)
@@ -387,7 +381,7 @@ def send():
             json.dump(generate(), fout)
         url = "https://%s/api/monitor/%s" % (host, piid())
         header1 = "Content-Type: application/json"
-        header2 = "X-API-Key: %s" % _api_key()
+        header2 = "X-API-Key: %s" % (fruit.agent.config.get('/api_key', ""),)
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
                                   "-H", header2, "-d", "@%s" % fname, url])
         if exitcode == 0:
