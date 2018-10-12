@@ -9,8 +9,6 @@ clean:
 	find . -iname '__pycache__' | xargs rm -rf
 
 install:
-	install -m755 -d $(DESTDIR)/media/mmcblk0p1
-
 	install -m755 -d $(DESTDIR)/usr/sbin/
 	install -m750 sbin/* $(DESTDIR)/usr/sbin/
 
