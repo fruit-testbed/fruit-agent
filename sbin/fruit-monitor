@@ -386,7 +386,7 @@ def send():
         header1 = "Content-Type: application/json"
         header2 = "X-API-Key: %s" % (fruit.agent.config.get('/api_key', ""),)
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
-                                  "-H", header2, "-d", "@%s" % fname, url])
+                                  "-H", header2, "-d", "@%s" % (fname,), url])
         if exitcode == 0:
             syslog.syslog("Sent monitoring data to %s" % host)
         else:
