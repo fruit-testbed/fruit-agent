@@ -5,6 +5,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__),'../share/fruit/python'))
 import fruit.agent.config
+import fruit.auth
+import fruit.auth.ssh_key
 import json
 import subprocess as sp
 import re
@@ -13,6 +15,7 @@ import argparse
 import syslog
 import traceback
 import http.client
+# import urllib.request -- TODO: use this instead of shelling out to curl perhaps
 
 
 __DOCKER_SOCK__ = "/var/run/docker.sock"
@@ -167,22 +170,26 @@ def _docker():
     }
 
 
+def __unix_socket_http_rpc(socketpath, pseudohostname, urlpath, default=None):
+    if not os.path.exists(socketpath):
+        return default
+    cmd = ["curl", "-fs", "--unix-socket", socketpath, "http://%s%s" % (pseudohostname, urlpath)]
+    try:
+        return json.loads(_call(cmd))
+    except sp.CalledProcessError:
+        return default
+
+
+def __docker(urlpath):
+    return __unix_socket_http_rpc(__DOCKER_SOCK__, __DOCKER_API_VERSION__, urlpath)
+
+
 def _docker_images():
-    docker_sock = "/var/run/docker.sock"
-    if not os.path.exists(docker_sock):
-        return None
-    cmd = ["curl", "-fs", "--unix-socket", docker_sock,
-           "http:/%s/images/json?all=true" % __DOCKER_API_VERSION__]
-    return json.loads(_call(cmd))
+    return __docker("/images/json?all=true")
 
 
 def _docker_containers():
-    docker_sock = "/var/run/docker.sock"
-    if not os.path.exists(docker_sock):
-        return None
-    cmd = ["curl", "-fs", "--unix-socket", docker_sock,
-           "http:/%s/containers/json?all=true" % __DOCKER_API_VERSION__]
-    return json.loads(_call(cmd))
+    return __docker("/containers/json?all=true")
 
 
 def _piserial():
@@ -274,55 +281,32 @@ def _p2p_update():
     }
 
 
+def __p2p_update(urlpath):
+    return __unix_socket_http_rpc(__P2P_UPDATE_SOCK__, __P2P_UPDATE_VERSION__, urlpath)
+
+
 def _p2p_update_config():
-    if not os.path.exists(__P2P_UPDATE_SOCK__):
-        return None
-    url = "http://%s/config" % __P2P_UPDATE_VERSION__
-    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    try:
-        return json.loads(_call(cmd))
-    except sp.CalledProcessError:
-        return None
+    return __p2p_update("/config")
 
 
 def _p2p_update_overlay():
-    if not os.path.exists(__P2P_UPDATE_SOCK__):
-        return None
-    url = "http://%s/overlay" % __P2P_UPDATE_VERSION__
-    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    try:
-        stat = json.loads(_call(cmd))
-    except sp.CalledProcessError:
-        stat = None
+    stat = __p2p_update("/overlay")
     if isinstance(stat, dict):
-        url = "http://%s/overlay/peers" % __P2P_UPDATE_VERSION__
-        cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-        try:
-            stat['peers'] = json.loads(_call(cmd))
-        except sp.CalledProcessError:
-            pass
+        peers = __p2p_update("/overlay/peers")
+        if peers is not None:
+            stat['peers'] = peers
     return stat
 
 
 def _p2p_update_updates():
-    if not os.path.exists(__P2P_UPDATE_SOCK__):
-        return None
-    url = "http://%s/update" % __P2P_UPDATE_VERSION__
-    cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url]
-    try:
-        uuids = json.loads(_call(cmd))
-    except sp.CalledProcessError:
-        return None
+    updates = {}
+    uuids = __p2p_update("/update")
     if isinstance(uuids, list):
-        updates = {}
         for uuid in uuids:
-            url2 = "%s/%s" % (url, uuid)
-            cmd = ["curl", "-fs", "--unix-socket", __P2P_UPDATE_SOCK__, url2]
-            try:
-                updates[uuid] = json.loads(_call(cmd))
-            except sp.CalledProcessError:
-                pass
-        return updates
+            u = __p2p_update("/update/%s" % (uuid,))
+            if u is not None:
+                updates[uuid] = u
+    return updates
 
 
 def _http_get(host, path="/", secure=False):
@@ -376,15 +360,32 @@ def generate():
     }
 
 
+def _api_token():
+    sk = fruit.auth.ssh_key.SshPrivateKey('/etc/ssh/ssh_host_ed25519_key')
+    sk.unprotect(None) ## the host key has no passphrase
+    identity = sk.public_key
+    return fruit.auth.make_authenticated_identity(identity, sk.signer_for_identity(identity))
+
+
+def _owner_user_id():
+    user_id = fruit.agent.config.get('/public-key')
+    if user_id is None:
+        # Fall back to legacy api_key
+        user_id = fruit.agent.config.get('/api_key')
+        if user_id is None:
+            raise RuntimeError("Neither public-key nor api_key defined in fruit.json")
+    return user_id
+
+
 def send():
     api_url = fruit.agent.config.get('/api_url', "https://fruit-testbed.org/api")
     fd, fname = tempfile.mkstemp(text=True)
     try:
         with os.fdopen(fd, 'w') as fout:
             json.dump(generate(), fout)
-        url = "%s/monitor/%s" % (api_url, piid())
+        url = "%s/resource/%s/monitor" % (api_url, _owner_user_id())
         header1 = "Content-Type: application/json"
-        header2 = "X-API-Key: %s" % (fruit.agent.config.get('/api_key', ""),)
+        header2 = "X-API-Key: %s" % (_api_token(),)
         exitcode = sp.check_call(["curl", "-fs", "-X", "POST", "-H", header1,
                                   "-H", header2, "-d", "@%s" % (fname,), url])
         if exitcode == 0:
