@@ -1,8 +1,12 @@
 #!/bin/sh
 
+config_local=/run/fruit.json@local
+config_server=/run/fruit.json@server
+
 fruit_value() {
-    local v=$(jq -r "$1" "${config_local}" 2>/dev/null)
-    if [ "$v" = "null" ]; then v=$(jq -r "$1" "${config_server}" 2>/dev/null); fi
+    local v=null
+    if [ -f "${config_local}" ]; then v=$(jq -r "$1" "${config_local}" 2>/dev/null); fi
+    if [ "$v" = "null" ] && [ -f "${config_server}" ]; then v=$(jq -r "$1" "${config_server}" 2>/dev/null); fi
     if [ "$v" = "null" ]; then v="$2"; fi
     echo "$v"
 }
