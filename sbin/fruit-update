@@ -171,8 +171,12 @@ clean_boot_partition() {
     #  - repeatedly (!) delete `boot-root.env` until no such file remains (!)
     #
     local envfilecount=$(ls /media/mmcblk0p1 | grep '^boot-root\.env$' | wc -l)
-    if [ "$envfilecount" = "1" ]
-    then
+    if [ "$envfilecount" = "0" ]; then
+        ## This could be caused by a previous recovery pass deleting
+        ## all the boot-root.env files.
+        logger -st fruit "INFO: no boot-root.env files found; next boot will create one"
+        return 0
+    elif [ "$envfilecount" = "1" ]; then
         local bootactive=$(awk 'BEGIN { FS="=" } /root_dev=/ {print $2}' /media/mmcblk0p1/boot-root.env)
         if [ "$bootactive" = "$active" ]
         then
