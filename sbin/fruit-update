@@ -147,6 +147,69 @@ update_apk_world() {
 	return $ret
 }
 
+clean_boot_partition() {
+    # u-boot seems from time to time to create a second (!!)
+    # directory entry called `boot-root.env` in /media/mmcblk0p1.
+    #
+    # Running `fsck.vfat` from `dosfstools` appears to clean it up,
+    # but it then seems to return on next boot. However, running `rm
+    # boot-root.env` until no more copies remain (!!) seems to work
+    # well, and to allow clean boots from then on.
+    #
+    # Ultimately, debugging u-boot's FAT-management code is likely to
+    # be needed; this is very much just a horrible workaround.
+    #
+    # It's also possible that the bug is actually being caused by an
+    # error in the u-boot script we use to boot fruitos; perhaps close
+    # examination of that script will reveal a mistake that can be
+    # repaired which will then obviate this code.
+    #
+    # SYMPTOMS:
+    #  - duplicate boot-root.env
+    #  - mismatch between contents of boot-root.env and current active partition
+    # REMEDY:
+    #  - repeatedly (!) delete `boot-root.env` until no such file remains (!)
+    #
+    local envfilecount=$(ls /media/mmcblk0p1 | grep '^boot-root\.env$' | wc -l)
+    if [ "$envfilecount" = "1" ]
+    then
+        local bootactive=$(awk 'BEGIN { FS="=" } /root_dev=/ {print $2}' /media/mmcblk0p1/boot-root.env)
+        if [ "$bootactive" = "$active" ]
+        then
+            return 0
+        else
+            logger -st fruit "Recovering: boot-root.env file does not match active partition"
+        fi
+    else
+        logger -st fruit "Recovering: duplicate boot-root.env files found"
+    fi
+
+    ## If we reach here, either envfilecount was not one, or the
+    ## boot-root.env file didn't contain a sensible entry.
+    local rmcounter=0
+    local rmlimit=10
+    while rm /media/mmcblk0p1/boot-root.env 2>/dev/null
+    do
+        rmcounter=$((rmcounter + 1))
+        if [ "$rmcounter" = "$rmlimit" ]
+        then
+            logger -st fruit "WARNING: More than ten boot-root.env deletions apparently succeeded; giving up"
+            break
+        fi
+    done
+
+    envfilecount=$(ls /media/mmcblk0p1 | grep '^boot-root\.env$' | wc -l)
+    if [ "$envfilecount" != "0" ]
+    then
+        logger -st fruit "ERROR: Repair of boot partition boot-root.env was unsuccessful"
+    fi
+
+    ## Return 0 even if we were unsuccessful, since returning non-zero
+    ## will cause early exit of the script as a whole at the moment,
+    ## and we don't want to obstruct other update and repair routines.
+    return 0
+}
+
 apply_update() {
 	local ret=0
 
@@ -242,6 +305,7 @@ fi
 # then, apply update on non-active root partition
 mark_dirty $non_active && \
 	mount_volumes && \
+        clean_boot_partition && \
 	apply_update && \
 	umount_volumes && \
 	mark_clean $non_active
