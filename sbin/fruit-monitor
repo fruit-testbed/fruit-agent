@@ -15,6 +15,7 @@ import argparse
 import syslog
 import traceback
 import http.client
+import socket
 # import urllib.request -- TODO: use this instead of shelling out to curl perhaps
 
 
@@ -309,16 +310,20 @@ def _p2p_update_updates():
     return updates
 
 
-def _http_get(host, path="/", secure=False):
-    if secure:
-        conn = http.client.HTTPSConnection(host)
-    else:
-        conn = http.client.HTTPConnection(host)
-    conn.request("GET", path)
-    res = conn.getresponse()
-    statusbody = res.status, str(res.read(), 'utf-8')
-    conn.close()
-    return statusbody
+def _http_get(host, path="/", secure=False, timeout=10):
+    try:
+        if secure:
+            conn = http.client.HTTPSConnection(host, timeout=timeout)
+        else:
+            conn = http.client.HTTPConnection(host, timeout=timeout)
+        conn.request("GET", path)
+        res = conn.getresponse()
+        statusbody = res.status, str(res.read(), 'utf-8')
+        conn.close()
+        return statusbody
+    except socket.timeout:
+        syslog.syslog("Timeout contacting host %s" % (host,))
+        return None, None
 
 
 def _location():
