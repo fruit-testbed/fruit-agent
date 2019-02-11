@@ -522,8 +522,8 @@ setup_p2p_update() {
 setup_dnsmasq() {
 	local pid=$(pidof dnsmasq)
 	local iface=$(fruit_value .dnsmasq.interface "")
-	local addr="10.2.0.1/24"
-	local dhcprange="10.2.0.10,10.2.0.254,24"
+	local addr=$(fruit_value .dnsmasq.addr "10.2.0.1/24")
+	local dhcprange=$(fruit_value .dnsmasq.dhcprange "10.2.0.10,10.2.0.254,24")
 
 	if [ "$pid" = "" ]; then
 		[ "$iface" = "" ] && return 0
