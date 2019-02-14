@@ -29,4 +29,5 @@ install:
 	$(INSTALL) -m755 fruit-local.start $(DESTDIR)/etc/local.d/
 
 	$(INSTALL) -m755 -d $(DESTDIR)/usr/share # default fruit.json and other common files
+	chmod -R go-w share
 	cp -rp share/* $(DESTDIR)/usr/share
