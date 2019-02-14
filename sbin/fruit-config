@@ -678,6 +678,18 @@ lockfile -r 0 /.fruit-config.lock || {
 	logger -st fruit "Another fruit-config is already running"
 	exit 1
 }
+clean_lock() {
+    rm -f /.fruit-config.lock
+    if [ -n "$1" ]; then
+        trap $1
+        kill -$1 $$
+    fi
+}
+trap "clean_lock" 0
+trap "clean_lock 2" 2
+trap "clean_lock 3" 3
+trap "clean_lock 13" 13
+trap "clean_lock 15" 15
 
 case "$(rc-status -r)" in
 	boot)
@@ -716,7 +728,5 @@ case "$(rc-status -r)" in
 		true
 		;;
 esac
-
-rm -f /.fruit-config.lock
 
 exit 0

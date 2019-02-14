@@ -286,6 +286,18 @@ lockfile -r 0 /.fruit-update.lock || {
 	logger -st fruit "Another fruit-update is already running"
 	exit 1
 }
+clean_lock() {
+    rm -f /.fruit-update.lock
+    if [ -n "$1" ]; then
+        trap $1
+        kill -$1 $$
+    fi
+}
+trap "clean_lock" 0
+trap "clean_lock 2" 2
+trap "clean_lock 3" 3
+trap "clean_lock 13" 13
+trap "clean_lock 15" 15
 
 umount_volumes
 [ $? -ne 0 ] && \
@@ -328,7 +340,5 @@ else
 fi
 
 echo "=== End $(date) ===" >> $apk_log_file
-
-rm -f /.fruit-update.lock
 
 exit $ret
